@@ -62,9 +62,8 @@ public class PauseProtectionListener implements Listener {
         if (gameStateManager.isPaused()) {
             Player player = event.getPlayer();
             if (player.isOp()) {
-                return; // Allow OP to move freely
+                return;
             }
-            // Allow camera movement (yaw/pitch change) but prevent position change
             Location from = event.getFrom();
             Location to = event.getTo();
             if (to.getX() != from.getX() || to.getY() != from.getY() || to.getZ() != from.getZ()) {

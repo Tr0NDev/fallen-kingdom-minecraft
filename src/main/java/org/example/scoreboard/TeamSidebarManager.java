@@ -45,7 +45,6 @@ public class TeamSidebarManager {
         if (scoreboardManager != null) {
             mainScoreboard = scoreboardManager.getNewScoreboard();
 
-            // Create teams initially
             updateTeams();
         }
 
@@ -94,14 +93,12 @@ public class TeamSidebarManager {
             return;
         }
 
-        // Handle health objective
         if (settingsManager.isHealthBelowNameEnabled()) {
             if (healthObjective == null) {
                 healthObjective = mainScoreboard.registerNewObjective(HEALTH_OBJECTIVE_NAME, "health");
                 healthObjective.setDisplaySlot(DisplaySlot.BELOW_NAME);
                 healthObjective.setDisplayName(ChatColor.RED + "❤");
             }
-            // Update health scores for all players
             for (Player player : Bukkit.getOnlinePlayers()) {
                 healthObjective.getScore(player.getName()).setScore((int) player.getHealth());
             }
@@ -112,10 +109,8 @@ public class TeamSidebarManager {
             }
         }
 
-        // Update teams
         updateTeams();
 
-        // Apply scoreboard to all players
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (captureScoreboards.containsKey(player.getUniqueId()) || sidebarOverrides.contains(player.getUniqueId())) {
                 continue;
@@ -123,7 +118,6 @@ public class TeamSidebarManager {
             player.setScoreboard(mainScoreboard);
         }
 
-        // Update display names
         teamManager.updatePlayerDisplayNames();
     }
 
@@ -132,23 +126,19 @@ public class TeamSidebarManager {
             return;
         }
 
-        // Remove old teams
         for (org.bukkit.scoreboard.Team team : mainScoreboard.getTeams()) {
             team.unregister();
         }
 
-        // Add teams
         for (Map.Entry<Integer, TeamData> entry : teamManager.getTeams().entrySet()) {
             TeamData teamData = entry.getValue();
             org.bukkit.scoreboard.Team scoreboardTeam = mainScoreboard.registerNewTeam(teamData.name);
-            // Only set color prefix if colored names are enabled
             if (settingsManager.isColoredNamesEnabled()) {
                 scoreboardTeam.setPrefix(teamManager.getTeamChatColor(teamData.color) + "");
             }
             scoreboardTeam.setDisplayName(teamData.name);
             scoreboardTeam.setCanSeeFriendlyInvisibles(true);
             scoreboardTeam.setAllowFriendlyFire(settingsManager.isFriendlyFireEnabled());
-            // Add players to team
             for (UUID playerId : teamData.members) {
                 Player player = Bukkit.getPlayer(playerId);
                 if (player != null && player.isOnline()) {
@@ -209,7 +199,6 @@ public class TeamSidebarManager {
             return;
         }
 
-        // Reset teams and recreate from team data for colored names + tab consistency.
         for (org.bukkit.scoreboard.Team oldTeam : board.getTeams()) {
             oldTeam.unregister();
         }

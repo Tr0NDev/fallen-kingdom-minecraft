@@ -329,7 +329,6 @@ public class FkSettingsCommand {
             return;
         }
 
-        // Mark as read-only stats viewer (for event blocking)
         if (readOnlyViewers != null) {
             readOnlyViewers.add(viewer.getUniqueId());
         }
@@ -346,7 +345,6 @@ public class FkSettingsCommand {
             return;
         }
 
-        // Deduplicate by player name (case-insensitive)
         Map<String, Map.Entry<UUID, PlayerStatsManager.PlayerStats>> nameToEntry = new java.util.LinkedHashMap<>();
         for (Map.Entry<UUID, PlayerStatsManager.PlayerStats> entry : playerStatsManager.getGlobalSnapshot().entrySet()) {
             String name = resolvePlayerName(entry.getKey());
@@ -567,9 +565,7 @@ public class FkSettingsCommand {
         if (slot == SLOT_COLORED_NAMES) {
             settingsManager.toggleColoredNames();
             broadcastSettingChange("Colored names: " + (settingsManager.isColoredNamesEnabled() ? "enabled" : "disabled"));
-            // Update player display names immediately
             teamManager.updatePlayerDisplayNames();
-            // Update scoreboard teams to apply/remove color prefixes
             if (teamSidebarManager != null) {
                 teamSidebarManager.refreshTeams();
             }
@@ -829,14 +825,6 @@ public class FkSettingsCommand {
         settingsManager.setBaseLoadoutItems(items);
     }
 
-    public void announceAllowedBlocksUpdated(Player player) {
-        // No private feedback needed: global setting update message is already broadcast.
-    }
-
-    public void announceBaseLoadoutUpdated(Player player) {
-        // No private feedback needed: global setting update message is already broadcast.
-    }
-
     public boolean isReadOnlyAllowedBlocksViewer(UUID playerId) {
         return readOnlyAllowedBlocksViewers.contains(playerId);
     }
@@ -887,7 +875,6 @@ public class FkSettingsCommand {
     private void eliminateTeamsWithoutChests() {
         for (TeamData team : teamManager.getTeams().values()) {
             if (team.baseRadius > 0 && teamManager.getCaptureBounds(team) == null) {
-                // No chests in base, eliminate
                 team.baseCenter = null;
                 team.baseRadius = 0;
                 teamManager.invalidateCaptureBounds(team.id);
@@ -927,5 +914,8 @@ public class FkSettingsCommand {
         meta.setDisplayName(ChatColor.GREEN + "Back");
         item.setItemMeta(meta);
         return item;
+    }
+
+    public void announceAllowedBlocksUpdated(Player player) {
     }
 }

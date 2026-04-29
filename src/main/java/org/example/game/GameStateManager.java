@@ -271,7 +271,6 @@ public class GameStateManager {
                     continue;
                 }
 
-                // If KOTH is active with a king, skip ActionBar (KothManager handles it)
                 if (kothManager != null && kothManager.isActive() && kothManager.getCurrentKing() != null) {
                     continue;
                 }
@@ -424,7 +423,6 @@ public class GameStateManager {
 
             long now = System.currentTimeMillis();
             while (now >= nextDayAtMillis) {
-                // Stop KOTH if it's active (day is ending)
                 if (kothManager != null && kothManager.isActive()) {
                     kothManager.stopKoth();
                 }

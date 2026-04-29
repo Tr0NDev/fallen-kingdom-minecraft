@@ -208,13 +208,12 @@ public final class LegacyBossBarUtil {
     private static Location getBossBarLocation(Player player) {
         Location base = player.getLocation().clone();
         Vector direction = base.getDirection();
-        // Don't flatten Y, so it follows up/down too
         if (direction.lengthSquared() < 1.0E-6D) {
             direction = new Vector(0.0D, 0.0D, 1.0D);
         }
-        direction.normalize().multiply(20.0D); // 20 blocks in look direction
+        direction.normalize().multiply(20.0D);
         Location loc = base.add(direction);
-        loc.setY(loc.getY() + 10.0D); // Always add 10 to height
+        loc.setY(loc.getY() + 10.0D);
         return loc;
     }
 }

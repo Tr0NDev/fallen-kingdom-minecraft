@@ -118,7 +118,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new FlyGuiListener(), this);
         getServer().getPluginManager().registerEvents(kothCommand, this);
         getServer().getPluginManager().registerEvents(mapVoteManager, this);
-        // Register stats menu listener to block interaction with stats GUI
+
         new org.example.listener.StatsMenuListener(settingsCommand, this);
         settingsCommand.applyDayToWorlds();
         gameStateManager.startHud();

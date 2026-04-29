@@ -24,7 +24,6 @@ public class StatsMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
         if (event.getView().getTitle().equals(FkSettingsCommand.GLOBAL_STATS_TITLE)) {
-            // Block all interaction
             event.setCancelled(true);
         }
     }
@@ -34,7 +33,6 @@ public class StatsMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
         if (event.getView().getTitle().equals(FkSettingsCommand.GLOBAL_STATS_TITLE)) {
-            // Block all drag interaction
             event.setCancelled(true);
         }
     }

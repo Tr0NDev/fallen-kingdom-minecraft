@@ -932,7 +932,7 @@ public class TeamManager implements Listener {
             setCustomName.invoke(handle, customName);
             setCustomNameVisible.invoke(handle, Boolean.TRUE.booleanValue());
         } catch (Exception exception) {
-            // Ignore reflection failures across server builds.
+            //prout
         }
     }
 
@@ -1109,7 +1109,6 @@ public class TeamManager implements Listener {
                 return;
             }
 
-            // Handle member removal
             if (event.getRawSlot() >= 0 && event.getRawSlot() < 54 && event.getCurrentItem() != null
                     && event.getCurrentItem().getType() == Material.SKULL_ITEM) {
                 ItemMeta meta = event.getCurrentItem().getItemMeta();
@@ -1606,7 +1605,6 @@ public class TeamManager implements Listener {
         double bottomY = bounds.minY + 0.15D;
         double topY = bounds.maxY + 0.15D;
 
-        // Bottom and top squares.
         for (int x = bounds.minX; x <= bounds.maxX; x++) {
             playMarker(player, new Location(world, x + 0.5D, bottomY, bounds.minZ + 0.5D));
             playMarker(player, new Location(world, x + 0.5D, bottomY, bounds.maxZ + 0.5D));
@@ -1621,7 +1619,6 @@ public class TeamManager implements Listener {
             playMarker(player, new Location(world, bounds.maxX + 0.5D, topY, z + 0.5D));
         }
 
-        // Vertical corner pillars.
         for (int y = bounds.minY; y <= bounds.maxY; y++) {
             double markerY = y + 0.15D;
             playMarker(player, new Location(world, bounds.minX + 0.5D, markerY, bounds.minZ + 0.5D));
@@ -1754,7 +1751,6 @@ public class TeamManager implements Listener {
         }
 
         if (isLocationInsideEnemyBase(player, block == null ? null : block.getLocation())) {
-            // Allow breaking TNT in enemy bases when TNT cap is enabled
             if (block != null && block.getType() == Material.TNT && settingsManager.isTntCapEnabled()) {
                 return true;
             }

@@ -425,7 +425,6 @@ public class SettingsManager {
         if (globallyAllowedPlaceBlocks.contains(exactKey)) {
             return true;
         }
-        // Also check for material:0 to allow all data variants
         String baseKey = toBlockKey(material, (byte) 0);
         return globallyAllowedPlaceBlocks.contains(baseKey);
     }

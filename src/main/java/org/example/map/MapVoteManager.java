@@ -642,7 +642,7 @@ public class MapVoteManager implements Listener {
         try {
             configuration.save(getMapsFile());
         } catch (Exception ignored) {
-            // Keep runtime resilient if write fails.
+            //pipi
         }
     }
 

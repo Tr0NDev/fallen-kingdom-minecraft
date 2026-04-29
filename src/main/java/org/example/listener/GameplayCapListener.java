@@ -98,7 +98,6 @@ public class GameplayCapListener implements Listener {
 
         event.setCancelled(true);
 
-        // Safety cleanup one tick later in case some portal blocks are still created.
         plugin.getServer().getScheduler().runTaskLater(plugin, new Runnable() {
             @Override
             public void run() {

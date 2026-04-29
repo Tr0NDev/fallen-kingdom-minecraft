@@ -292,7 +292,6 @@ public class SettingsMenuListener implements Listener {
 
         settingsCommand.saveAllowedBlocksFromMenu(event.getInventory());
         settingsCommand.announceAllowedBlocksUpdated(player);
-        // Removed: settingsCommand.openSettingsMenu(player); to prevent infinite loop
     }
 
     @EventHandler

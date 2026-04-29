@@ -41,7 +41,6 @@ public class KothCommand implements Listener {
     private final JavaPlugin plugin;
     private final KothManager kothManager;
 
-    // Pending zone selection
     private final Map<Player, Boolean> settingZone = new HashMap<>();
     private final Map<Player, Location> zoneCenters = new HashMap<>();
 
@@ -53,34 +52,24 @@ public class KothCommand implements Listener {
     public void openKothMenu(Player player) {
         Inventory menu = Bukkit.createInventory(null, 54, KOTH_MENU_TITLE);
 
-        // Enable/Disable button
         menu.setItem(SLOT_ENABLE_DISABLE, createEnableDisableItem());
 
-        // Set Zone button
         menu.setItem(SLOT_SET_ZONE, createSetZoneItem());
 
-        // Rewards button
         menu.setItem(SLOT_REWARDS, createRewardsItem());
 
-        // Reward Count button
         menu.setItem(SLOT_REWARD_COUNT, createRewardCountItem());
 
-        // Capture Time button
         menu.setItem(SLOT_CAPTURE_TIME, createCaptureTimeItem());
 
-        // Instant Start button
         menu.setItem(SLOT_START_KOTH, createStartKothItem());
 
-        // Start Day button
         menu.setItem(SLOT_START_DAY, createStartDayItem());
 
-        // End Day button
         menu.setItem(SLOT_END_DAY, createEndDayItem());
 
-        // Back button
         menu.setItem(SLOT_BACK, createBackItem());
 
-        // Fill borders
         fillBorder(menu);
 
         player.openInventory(menu);
@@ -252,7 +241,7 @@ public class KothCommand implements Listener {
             } else if (slot == SLOT_REWARD_COUNT) {
                 player.closeInventory();
                 player.sendMessage(PREFIX + ChatColor.YELLOW + "Type the number of rewards to give to the winner in chat:");
-                kothManager.setPendingRewardCount(player, 0); // Mark as pending
+                kothManager.setPendingRewardCount(player, 0);
             } else if (slot == SLOT_CAPTURE_TIME) {
                 player.closeInventory();
                 player.sendMessage(PREFIX + ChatColor.YELLOW + "Type how many seconds a player must stay in the KOTH zone to win:");
@@ -274,16 +263,15 @@ public class KothCommand implements Listener {
             } else if (slot == SLOT_START_DAY) {
                 player.closeInventory();
                 player.sendMessage(PREFIX + ChatColor.YELLOW + "Type the start day for KOTH in chat:");
-                kothManager.setPendingStartDay(player, 0); // Mark as pending
+                kothManager.setPendingStartDay(player, 0);
             } else if (slot == SLOT_END_DAY) {
                 player.closeInventory();
                 player.sendMessage(PREFIX + ChatColor.YELLOW + "Type the end day for KOTH in chat:");
-                kothManager.setPendingEndDay(player, 0); // Mark as pending
+                kothManager.setPendingEndDay(player, 0);
             } else if (slot == SLOT_BACK) {
                 player.closeInventory();
             }
         } else if (title.equals(REWARD_MENU_TITLE)) {
-            // Allow interaction with reward inventory
             return;
         }
     }
@@ -379,7 +367,6 @@ public class KothCommand implements Listener {
             return;
         }
 
-        // Zone radius setting
         if (settingZone.containsKey(player)) {
             event.setCancelled(true);
             event.getRecipients().clear();
@@ -401,10 +388,5 @@ public class KothCommand implements Listener {
             zoneCenters.remove(player);
             return;
         }
-    }
-
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        // Removed zone selection by block punching - now using chat input
     }
 }

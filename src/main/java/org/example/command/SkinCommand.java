@@ -141,7 +141,7 @@ public class SkinCommand implements CommandExecutor {
             }
 
         } catch (Exception exception) {
-            // Ignore packet refresh failures across forks.
+            //caca
         }
     }
 

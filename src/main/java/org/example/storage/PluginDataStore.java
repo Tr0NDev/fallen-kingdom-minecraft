@@ -329,7 +329,6 @@ public class PluginDataStore {
                 continue;
             }
 
-            // Legacy migration: material-only entries become data 0.
             Material material = Material.getMaterial(materialName);
             if (material != null && material.isBlock()) {
                 allowedBlocks.add(settingsManager.toBlockKey(material, (byte) 0));

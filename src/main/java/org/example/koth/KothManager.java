@@ -30,8 +30,6 @@ public class KothManager {
 
     private final JavaPlugin plugin;
     private final Random random = new Random();
-
-    // KOTH settings
     private boolean enabled = false;
     private Location zoneCenter;
     private int zoneRadius = 0;
@@ -42,7 +40,6 @@ public class KothManager {
     private int endDay = 10;
     private int scheduledKothDay = -1;
 
-    // Runtime state
     private boolean active = false;
     private int currentDay = -1;
     private Player currentKing;
@@ -52,7 +49,6 @@ public class KothManager {
     private BukkitTask zoneCheckTimer;
     private final Map<UUID, Boolean> playersInZone = new ConcurrentHashMap<>();
 
-    // Pending interactions
     private final Map<UUID, Integer> pendingRewardCount = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> pendingCaptureTime = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> pendingStartDay = new ConcurrentHashMap<>();
@@ -188,16 +184,14 @@ public class KothManager {
         lastDisplayedPercentage = -1;
         scheduledKothDay = -1;
 
-        // Announce KOTH start
         Bukkit.broadcastMessage(PREFIX + ChatColor.GOLD + "King of the Hill has started! Stay in the zone for " + captureTimeSeconds + " seconds to win!");
 
-        // Start zone checking
         zoneCheckTimer = new BukkitRunnable() {
             @Override
             public void run() {
                 checkZone();
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Check every second
+        }.runTaskTimer(plugin, 0L, 20L);
     }
 
     private void checkZone() {
@@ -205,16 +199,13 @@ public class KothManager {
             return;
         }
 
-        // Check zone entry/exit messages
         for (Player player : Bukkit.getOnlinePlayers()) {
             boolean currentlyInZone = isInZone(player.getLocation());
             boolean wasInZone = playersInZone.getOrDefault(player.getUniqueId(), false);
 
             if (currentlyInZone && !wasInZone) {
-                // Player entered the zone
                 player.sendMessage(PREFIX + ChatColor.GREEN + "You entered the King of the Hill zone!");
             } else if (!currentlyInZone && wasInZone) {
-                // Player left the zone
                 player.sendMessage(PREFIX + ChatColor.RED + "You left the King of the Hill zone!");
             }
 
@@ -232,14 +223,12 @@ public class KothManager {
             Player potentialKing = playersInZone.get(0);
 
             if (currentKing == null || !currentKing.equals(potentialKing)) {
-                // New king or first king
                 currentKing = potentialKing;
                 kingTime = 0;
                 lastDisplayedPercentage = -1;
                 startKingTimer();
             }
         } else if (playersInZone.size() > 1) {
-            // Multiple players in zone
             if (currentKing != null) {
                 currentKing = null;
                 kingTime = 0;
@@ -250,7 +239,6 @@ public class KothManager {
                 }
             }
         } else {
-            // No players in zone
             if (currentKing != null) {
                 currentKing = null;
                 kingTime = 0;
@@ -274,8 +262,7 @@ public class KothManager {
             @Override
             public void run() {
                 kingTime++;
-                
-                // Only update ActionBar when kingTime changes (not every tick)
+
                 if (kingTime != lastUpdatedKingTime) {
                     updateKothProgressBar();
                     lastUpdatedKingTime = kingTime;
@@ -285,7 +272,7 @@ public class KothManager {
                     winKoth();
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Every second
+        }.runTaskTimer(plugin, 0L, 20L);
     }
 
     private void updateKothProgressBar() {
@@ -296,7 +283,6 @@ public class KothManager {
         float progress = (float) kingTime / captureTimeSeconds;
         int percentage = (int) (progress * 100);
 
-        // Only update if percentage changed
         if (percentage == lastDisplayedPercentage) {
             return;
         }
@@ -367,7 +353,6 @@ public class KothManager {
             return;
         }
 
-        // Give rewards
         List<ItemStack> availableRewards = new ArrayList<>(rewardItems);
         Collections.shuffle(availableRewards, random);
 
@@ -380,7 +365,6 @@ public class KothManager {
 
         Bukkit.broadcastMessage(PREFIX + ChatColor.GOLD + currentKing.getName() + " has won King of the Hill and received " + rewardCount + " reward(s)!");
 
-        // Stop KOTH
         stopKoth();
     }
 
@@ -421,7 +405,6 @@ public class KothManager {
         return distance <= zoneRadius;
     }
 
-    // Menu interaction methods
     public void openRewardInventory(Player player) {
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.translateAlternateColorCodes('&', "&2[&aFK&2] &bKOTH Rewards"));
         for (int i = 0; i < rewardItems.size() && i < 54; i++) {
@@ -439,7 +422,6 @@ public class KothManager {
         }
     }
 
-    // Pending interactions
     public void setPendingRewardCount(Player player, int count) {
         pendingRewardCount.put(player.getUniqueId(), count);
     }
@@ -506,14 +488,12 @@ public class KothManager {
             return;
         }
 
-        // Calculate center
         double centerX = (corner1.getX() + corner2.getX()) / 2;
         double centerY = (corner1.getY() + corner2.getY()) / 2;
         double centerZ = (corner1.getZ() + corner2.getZ()) / 2;
 
         Location center = new Location(corner1.getWorld(), centerX, centerY, centerZ);
 
-        // Calculate radius (distance from center to corner)
         double radius = center.distance(corner1);
 
         setZoneCenter(center);

@@ -288,10 +288,10 @@ public class PlayerStateListener implements Listener {
     private void notifyBaseTransition(Player player, TeamData team, boolean entering) {
         ChatColor teamColor = teamManager.getTeamChatColor(team.color);
         String baseName = teamColor + team.name;
-        String publicMessage = entering
-            ? ChatColor.GREEN + player.getName() + " entered " + baseName + ChatColor.GREEN + " base."
-            : ChatColor.RED + player.getName() + " left " + baseName + ChatColor.RED + " base.";
-        Bukkit.broadcastMessage(PREFIX + publicMessage);
+        String message = entering
+                ? ChatColor.GREEN + "You entered " + baseName + ChatColor.GREEN + " base."
+                : ChatColor.RED + "You left " + baseName + ChatColor.RED + " base.";
+        player.sendMessage(PREFIX + message);
     }
 
     private void notifyChestRoomTransition(Player player, TeamData team, boolean entering) {
