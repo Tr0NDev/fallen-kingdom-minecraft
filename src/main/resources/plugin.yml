@@ -1,0 +1,38 @@
+name: Tr0NFK
+version: 1.0
+main: org.example.Tr0NFKPlugin
+author: robid
+commands:
+  fk:
+    description: Main FK command
+    usage: /fk, /fk help, /fk show, /fk stats, /fk scoreboard, /fk creeper <0-100>, /fk item rename <name>, /fk item enchant <enchant> <level>, /fk team, /fk settings, /fk koth start, /fk koth stop, /fk start, /fk pause, /fk resume, /fk stop, /fk setday <number>, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>
+  heal:
+    description: Heal a player
+    usage: /heal [player|all]
+  feed:
+    description: Feed a player
+    usage: /feed [player|all]
+  tpall:
+    description: Teleport all players to you
+    usage: /tpall
+  gmc:
+    description: Switch to creative mode
+    usage: /gmc [player|all]
+  gms:
+    description: Switch to survival mode
+    usage: /gms [player|all]
+  gmsp:
+    description: Switch to spectator mode
+    usage: /gmsp [player|all]
+  gma:
+    description: Switch to adventure mode
+    usage: /gma [player|all]
+  nick:
+    description: Rename yourself
+    usage: /nick <name>
+  skin:
+    description: Change your skin to another player's skin
+    usage: /skin <name>
+  fly:
+    description: Open fly speed GUI or set fly speed
+    usage: /fly [speed <number> [player]]
