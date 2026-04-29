@@ -864,6 +864,7 @@ public class MapVoteManager implements Listener {
         }
 
         WorldCreator creator = new WorldCreator(mapName);
+        creator.environment(World.Environment.NORMAL);
         return creator.createWorld();
     }
 

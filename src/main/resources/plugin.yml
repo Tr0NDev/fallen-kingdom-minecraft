@@ -5,7 +5,7 @@ author: robid
 commands:
   fk:
     description: Main FK command
-    usage: /fk, /fk help, /fk show, /fk stats, /fk scoreboard, /fk creeper <0-100>, /fk item rename <name>, /fk item enchant <enchant> <level>, /fk team, /fk settings, /fk koth start, /fk koth stop, /fk start, /fk pause, /fk resume, /fk stop, /fk setday <number>, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>
+    usage: /fk, /fk help, /fk show, /fk stats, /fk scoreboard, /fk creeper <0-100>, /fk item rename <name>, /fk item enchant <enchant> <level>, /fk team, /fk settings, /fk koth start, /fk koth stop, /fk start, /fk pause, /fk resume, /fk stop, /fk setday <number>, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>, /fk map clone <map>
   heal:
     description: Heal a player
     usage: /heal [player|all]

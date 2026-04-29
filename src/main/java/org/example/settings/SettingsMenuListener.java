@@ -319,6 +319,6 @@ public class SettingsMenuListener implements Listener {
         }
 
         settingsCommand.saveBaseLoadoutFromMenu(event.getInventory());
-        settingsCommand.announceBaseLoadoutUpdated(player);
+        // announceBaseLoadoutUpdated n'existe pas dans FkSettingsCommand
     }
 }
