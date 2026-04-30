@@ -560,13 +560,12 @@ public class FkCommand implements CommandExecutor, TabCompleter {
 
 
     private void cloneMap(Player player, String sourceMap, String destName) {
-        org.bukkit.plugin.java.JavaPlugin plugin =
-                org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
+        org.bukkit.plugin.java.JavaPlugin plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
         java.io.File pluginFolder = plugin.getDataFolder();
 
         java.io.File mapYml = new java.io.File(pluginFolder, "maps.yml");
         if (!mapYml.exists()) {
-            player.sendMessage(PREFIX + ChatColor.RED + "maps.yml introuvable dans le dossier plugin.");
+            player.sendMessage(PREFIX + ChatColor.RED + "maps.yml not found in plugin folder.");
             return;
         }
 
@@ -583,7 +582,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             }
         }
         if (!sourceFound) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Map source \"" + sourceMap + "\" introuvable dans maps.yml.");
+            player.sendMessage(PREFIX + ChatColor.RED + "Source map \"" + sourceMap + "\" not found in maps.yml.");
             return;
         }
 
@@ -594,7 +593,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
 
         for (String m : mapList) {
             if (m.equalsIgnoreCase(finalDest)) {
-                player.sendMessage(PREFIX + ChatColor.RED + "Une map nommée \"" + finalDest + "\" existe déjà dans maps.yml.");
+                player.sendMessage(PREFIX + ChatColor.RED + "A map named \"" + finalDest + "\" already exists in maps.yml.");
                 return;
             }
         }
@@ -604,18 +603,18 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         try {
             mapConfig.save(mapYml);
         } catch (java.io.IOException e) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Erreur lors de la sauvegarde de maps.yml : " + e.getMessage());
+            player.sendMessage(PREFIX + ChatColor.RED + "Error while saving maps.yml: " + e.getMessage());
             return;
         }
 
         org.bukkit.World loadedSource = org.bukkit.Bukkit.getWorld(sourceMap);
         if (loadedSource != null) {
-            player.sendMessage(PREFIX + ChatColor.YELLOW + "Sauvegarde et déchargement du monde source...");
+            player.sendMessage(PREFIX + ChatColor.YELLOW + "Saving and unloading source world...");
             org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
             org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
             for (org.bukkit.entity.Player online : new java.util.ArrayList<org.bukkit.entity.Player>(loadedSource.getPlayers())) {
                 online.teleport(fallbackLoc);
-                online.sendMessage(PREFIX + ChatColor.YELLOW + "Téléporté temporairement pour le clonage de la map.");
+                online.sendMessage(PREFIX + ChatColor.YELLOW + "Temporarily teleported for map cloning.");
             }
             loadedSource.save();
             org.bukkit.Bukkit.unloadWorld(loadedSource, true);
@@ -628,21 +627,21 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         if (sourceWorld.exists() && sourceWorld.isDirectory()) {
             if (destWorld.exists()) {
                 player.sendMessage(PREFIX + ChatColor.YELLOW
-                        + "Le dossier \"" + finalDest + "\" existe déjà à la racine, copie ignorée.");
+                        + "Folder \"" + finalDest + "\" already exists at root, copy skipped.");
             } else {
-                player.sendMessage(PREFIX + ChatColor.YELLOW + "Copie du dossier monde en cours...");
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Copying world folder...");
                 try {
                     copyDirectory(sourceWorld, destWorld);
                     java.io.File sessionLock = new java.io.File(destWorld, "session.lock");
                     if (sessionLock.exists()) { sessionLock.delete(); }
                 } catch (java.io.IOException e) {
-                    player.sendMessage(PREFIX + ChatColor.RED + "Erreur copie du dossier monde : " + e.getMessage());
+                    player.sendMessage(PREFIX + ChatColor.RED + "Error copying world folder: " + e.getMessage());
                     return;
                 }
             }
         } else {
             player.sendMessage(PREFIX + ChatColor.YELLOW
-                    + "Aucun dossier \"" + sourceMap + "\" trouvé à la racine du serveur, ignoré.");
+                    + "No folder \"" + sourceMap + "\" found at server root, skipped.");
         }
 
         java.io.File profilesDir   = new java.io.File(pluginFolder, "map-profiles");
@@ -653,34 +652,95 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         if (sourceProfile.exists()) {
             try {
                 profilesDir.mkdirs();
-                org.bukkit.configuration.file.YamlConfiguration profileConfig =
-                        org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(sourceProfile);
+                org.bukkit.configuration.file.YamlConfiguration profileConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(sourceProfile);
 
-                if (profileConfig.contains("name")) {
-                    profileConfig.set("name", finalDest);
-                }
+                replaceWorldNameInConfig(profileConfig, sourceMap, finalDest);
+
                 profileConfig.save(destProfile);
                 profileCopied = true;
             } catch (java.io.IOException e) {
-                player.sendMessage(PREFIX + ChatColor.RED + "Erreur lors de la copie du profil : " + e.getMessage());
+                player.sendMessage(PREFIX + ChatColor.RED + "Error while copying profile: " + e.getMessage());
                 return;
             }
         } else {
             player.sendMessage(PREFIX + ChatColor.YELLOW
-                    + "Aucun profil trouvé pour \"" + sourceMap + "\", map-profiles ignoré.");
+                    + "No profile found for \"" + sourceMap + "\", map-profiles skipped.");
         }
 
-        player.sendMessage(PREFIX + ChatColor.GREEN + "Clonage terminé !");
+        player.sendMessage(PREFIX + ChatColor.GREEN + "Cloning completed!");
         player.sendMessage(PREFIX + ChatColor.YELLOW + sourceMap
                 + ChatColor.GREEN + " -> " + ChatColor.YELLOW + finalDest + ChatColor.GREEN + " :");
-        player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml mis à jour");
+        player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml updated");
         if (profileCopied) {
-            player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + finalDest + ".yml copié");
+            player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + finalDest + ".yml copied and adapted");
         }
         if (destWorld.exists()) {
-            player.sendMessage(ChatColor.GRAY + "  ✔ dossier monde " + finalDest + "/ copié");
+            player.sendMessage(ChatColor.GRAY + "  ✔ world folder " + finalDest + "/ copied");
         }
-        player.sendMessage(PREFIX + ChatColor.GRAY + "Rechargez la config pour appliquer.");
+        player.sendMessage(PREFIX + ChatColor.GRAY + "Reload config to apply.");
+    }
+
+    private void replaceWorldNameInConfig(org.bukkit.configuration.file.YamlConfiguration config, String sourceWorld, String destWorld) {
+        replaceInSection(config, config, sourceWorld, destWorld);
+    }
+
+    private void replaceInSection(org.bukkit.configuration.ConfigurationSection root, org.bukkit.configuration.ConfigurationSection section, String sourceWorld, String destWorld) {
+        for (String key : new java.util.ArrayList<>(section.getKeys(false))) {
+            Object value = section.get(key);
+
+            if (value instanceof org.bukkit.configuration.ConfigurationSection) {
+                org.bukkit.configuration.ConfigurationSection child = (org.bukkit.configuration.ConfigurationSection) value;
+                if (key.equals(sourceWorld)) {
+                    org.bukkit.configuration.ConfigurationSection parent = section;
+                    String parentPath = section.getCurrentPath();
+                    String newPath = (parentPath == null || parentPath.isEmpty())  ? destWorld : parentPath + "." + destWorld;
+                    java.util.Map<String, Object> values = child.getValues(true);
+                    section.set(key, null);
+                    org.bukkit.configuration.ConfigurationSection newSection =
+                            root.createSection(newPath);
+                    for (java.util.Map.Entry<String, Object> entry : values.entrySet()) {
+                        Object val = entry.getValue();
+                        if (val instanceof String) {
+                            val = replaceWorldInString((String) val, sourceWorld, destWorld);
+                        }
+                        newSection.set(entry.getKey(), val);
+                    }
+                } else {
+                    replaceInSection(root, child, sourceWorld, destWorld);
+                }
+
+            } else if (value instanceof String) {
+                String replaced = replaceWorldInString((String) value, sourceWorld, destWorld);
+                if (!replaced.equals(value)) {
+                    section.set(key, replaced);
+                }
+
+            } else if (value instanceof java.util.List) {
+                java.util.List<?> list = (java.util.List<?>) value;
+                java.util.List<Object> newList = new java.util.ArrayList<>();
+                boolean changed = false;
+                for (Object item : list) {
+                    if (item instanceof String) {
+                        String replaced = replaceWorldInString((String) item, sourceWorld, destWorld);
+                        newList.add(replaced);
+                        if (!replaced.equals(item)) changed = true;
+                    } else {
+                        newList.add(item);
+                    }
+                }
+                if (changed) {
+                    section.set(key, newList);
+                }
+            }
+        }
+    }
+
+    private String replaceWorldInString(String value, String sourceWorld, String destWorld) {
+        if (value == null) return null;
+        if (value.equalsIgnoreCase(sourceWorld)) {
+            return destWorld;
+        }
+        return value;
     }
 
 
@@ -691,7 +751,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
 
         java.io.File mapYml = new java.io.File(pluginFolder, "maps.yml");
         if (!mapYml.exists()) {
-            player.sendMessage(PREFIX + ChatColor.RED + "maps.yml introuvable.");
+            player.sendMessage(PREFIX + ChatColor.RED + "maps.yml not found.");
             return;
         }
         org.bukkit.configuration.file.YamlConfiguration mapConfig =
@@ -702,7 +762,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             if (m.equalsIgnoreCase(mapName)) { exactName = m; break; }
         }
         if (exactName == null) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Map \"" + mapName + "\" introuvable dans maps.yml.");
+            player.sendMessage(PREFIX + ChatColor.RED + "Map \"" + mapName + "\" not found in maps.yml.");
             return;
         }
 
@@ -710,12 +770,21 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         if (loaded != null) {
             org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
             org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
-            for (org.bukkit.entity.Player online : loaded.getPlayers()) {
+            for (org.bukkit.entity.Player online : new java.util.ArrayList<>(loaded.getPlayers())) {
                 online.teleport(fallbackLoc);
-                online.sendMessage(PREFIX + ChatColor.RED + "La map \"" + exactName + "\" est supprimée, vous avez été téléporté.");
+                online.sendMessage(PREFIX + ChatColor.RED + "The map \"" + exactName + "\" is being deleted, you have been teleported.");
             }
             loaded.save();
             org.bukkit.Bukkit.unloadWorld(loaded, false);
+        }
+
+        java.io.File worldContainer = org.bukkit.Bukkit.getWorldContainer();
+        java.io.File worldDir = new java.io.File(worldContainer, exactName);
+        if (worldDir.exists()) {
+            java.io.File sessionLock = new java.io.File(worldDir, "session.lock");
+            if (sessionLock.exists()) {
+                sessionLock.delete();
+            }
         }
 
         mapList.remove(exactName);
@@ -723,24 +792,31 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         try {
             mapConfig.save(mapYml);
         } catch (java.io.IOException e) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Erreur sauvegarde maps.yml : " + e.getMessage());
+            player.sendMessage(PREFIX + ChatColor.RED + "Error saving maps.yml: " + e.getMessage());
             return;
         }
 
         java.io.File profile = new java.io.File(new java.io.File(pluginFolder, "map-profiles"), exactName + ".yml");
         boolean profileDeleted = profile.exists() && profile.delete();
 
-        java.io.File worldContainer = org.bukkit.Bukkit.getWorldContainer();
-        java.io.File worldDir = new java.io.File(worldContainer, exactName);
-        boolean worldDeleted = deleteDirectory(worldDir);
+        boolean worldDeleted = deleteDirectoryWithRetry(worldDir, 3, 200);
 
-        player.sendMessage(PREFIX + ChatColor.RED + "Map \"" + exactName + "\" supprimée :");
-        player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml mis à jour");
-        if (profileDeleted) player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + exactName + ".yml supprimé");
-        if (worldDeleted)   player.sendMessage(ChatColor.GRAY + "  ✔ dossier " + exactName + "/ supprimé");
-        else                player.sendMessage(ChatColor.YELLOW + "  ⚠ dossier " + exactName + "/ non trouvé à la racine");
+        player.sendMessage(PREFIX + ChatColor.RED + "Map \"" + exactName + "\" deleted:");
+        player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml updated");
+        if (profileDeleted) player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + exactName + ".yml deleted");
+        if (worldDeleted)   player.sendMessage(ChatColor.GRAY + "  ✔ folder " + exactName + "/ deleted");
+        else player.sendMessage(ChatColor.YELLOW + "  ⚠ folder " + exactName + "/ not found or partially deleted");
     }
 
+
+    private boolean deleteDirectoryWithRetry(java.io.File dir, int maxRetries, long delayMs) {
+        if (dir == null || !dir.exists()) return false;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            if (deleteDirectory(dir)) return true;
+            try { Thread.sleep(delayMs); } catch (InterruptedException ignored) {}
+        }
+        return !dir.exists();
+    }
 
     private boolean deleteDirectory(java.io.File dir) {
         if (dir == null || !dir.exists()) return false;

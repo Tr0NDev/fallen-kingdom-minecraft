@@ -57,6 +57,7 @@ public class GameStateManager {
     private long persistedPlayedMillis;
     private final Map<Integer, BaseCaptureProgress> baseCaptureProgress = new ConcurrentHashMap<Integer, BaseCaptureProgress>();
     private PlayerStatsManager playerStatsManager;
+
     private Runnable saveAction = NO_OP;
 
     private static class BaseCaptureProgress {

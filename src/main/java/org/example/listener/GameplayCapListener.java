@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -111,29 +113,158 @@ public class GameplayCapListener implements Listener {
         }, 1L);
     }
 
+    private void createNetherPortalAt(Location center) {
+        int searchRadius = 16;
+        World world = center.getWorld();
+        int cx = center.getBlockX();
+        int cy = center.getBlockY();
+        int cz = center.getBlockZ();
+
+        for (int x = cx - searchRadius; x <= cx + searchRadius; x++) {
+            for (int y = Math.max(1, cy - searchRadius); y <= Math.min(world.getMaxHeight() - 1, cy + searchRadius); y++) {
+                for (int z = cz - searchRadius; z <= cz + searchRadius; z++) {
+                    if (world.getBlockAt(x, y, z).getType() == Material.PORTAL) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        int px = cx;
+        int pz = cz;
+        int py = cy;
+
+        for (int x = px - 1; x <= px + 2; x++) {
+            world.getBlockAt(x, py - 1, pz).setType(Material.OBSIDIAN);
+            world.getBlockAt(x, py + 3, pz).setType(Material.OBSIDIAN);
+        }
+        for (int y = py; y <= py + 2; y++) {
+            world.getBlockAt(px - 1, y, pz).setType(Material.OBSIDIAN);
+            world.getBlockAt(px + 2, y, pz).setType(Material.OBSIDIAN);
+            world.getBlockAt(px,     y, pz).setType(Material.PORTAL);
+            world.getBlockAt(px + 1, y, pz).setType(Material.PORTAL);
+        }
+
+        center.setX(px + 0.5);
+        center.setY(py);
+        center.setZ(pz + 0.5);
+    }
+
     @EventHandler
     public void onPlayerPortal(PlayerPortalEvent event) {
-        if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL && !settingsManager.isNetherCapEnabled()) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(PREFIX + ChatColor.RED + "Nether portals are disabled.");
-            return;
+        Player player = event.getPlayer();
+        World fromWorld = event.getFrom().getWorld();
+        if (fromWorld == null) return;
+
+        String fromName = fromWorld.getName();
+
+        if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL) {
+            if (!settingsManager.isNetherCapEnabled()) {
+                event.setCancelled(true);
+                player.sendMessage(PREFIX + ChatColor.RED + "Nether portals are disabled.");
+                return;
+            }
+
+            if (fromWorld.getEnvironment() == World.Environment.NORMAL) {
+                String netherName = fromName + "_nether";
+                World nether = Bukkit.getWorld(netherName);
+                if (nether == null) {
+                    event.setCancelled(true);
+                    player.sendMessage(PREFIX + ChatColor.RED + "Nether not available for this map.");
+                    return;
+                }
+
+                if (!settingsManager.isNetherAssaultEnabled()) {
+                    Location dest = event.getTo();
+                    if (dest != null && teamManager.isLocationInsideEnemyBase(player, dest)) {
+                        event.setCancelled(true);
+                        player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
+                        return;
+                    }
+                }
+
+                event.setCancelled(true);
+                Location from = event.getFrom();
+                Location netherDest = new Location(nether,
+                        from.getX() / 8.0,
+                        Math.max(64, Math.min(120, from.getY())),
+                        from.getZ() / 8.0,
+                        from.getYaw(),
+                        from.getPitch());
+
+                createNetherPortalAt(netherDest);
+                player.teleport(netherDest);
+                return;
+            }
+
+            if (fromWorld.getEnvironment() == World.Environment.NETHER) {
+                String overName = fromName.endsWith("_nether")
+                        ? fromName.substring(0, fromName.length() - "_nether".length())
+                        : "world";
+                World over = Bukkit.getWorld(overName);
+                if (over == null) {
+                    event.setCancelled(true);
+                    player.sendMessage(PREFIX + ChatColor.RED + "Overworld not available.");
+                    return;
+                }
+
+                if (!settingsManager.isNetherAssaultEnabled()) {
+                    Location dest = event.getTo();
+                    if (dest != null && teamManager.isLocationInsideEnemyBase(player, dest)) {
+                        event.setCancelled(true);
+                        player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
+                        return;
+                    }
+                }
+
+                event.setCancelled(true);
+                Location from = event.getFrom();
+                Location overDest = new Location(over,
+                        from.getX() * 8.0,
+                        Math.max(64, Math.min(255, from.getY())),
+                        from.getZ() * 8.0,
+                        from.getYaw(),
+                        from.getPitch());
+
+                createNetherPortalAt(overDest);
+                player.teleport(overDest);
+                return;
+            }
         }
 
-        if (event.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
-                && !settingsManager.isNetherAssaultEnabled()
-                && event.getFrom() != null
-                && event.getFrom().getWorld() != null
-                && event.getFrom().getWorld().getEnvironment() == World.Environment.NETHER
-                && event.getTo() != null
-                && teamManager.isLocationInsideEnemyBase(event.getPlayer(), event.getTo())) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
-            return;
-        }
+        if (event.getCause() == PlayerTeleportEvent.TeleportCause.END_PORTAL) {
+            if (!settingsManager.isEndCapEnabled()) {
+                event.setCancelled(true);
+                player.sendMessage(PREFIX + ChatColor.RED + "End portals are disabled.");
+                return;
+            }
 
-        if (event.getCause() == PlayerTeleportEvent.TeleportCause.END_PORTAL && !settingsManager.isEndCapEnabled()) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(PREFIX + ChatColor.RED + "End portals are disabled.");
+            if (fromWorld.getEnvironment() == World.Environment.NORMAL) {
+                String endName = fromName + "_the_end";
+                World end = Bukkit.getWorld(endName);
+                if (end == null) {
+                    event.setCancelled(true);
+                    player.sendMessage(PREFIX + ChatColor.RED + "The End not available for this map.");
+                    return;
+                }
+                event.setCancelled(true);
+                player.teleport(end.getSpawnLocation());
+                return;
+            }
+
+            if (fromWorld.getEnvironment() == World.Environment.THE_END) {
+                String overName = fromName.endsWith("_the_end")
+                        ? fromName.substring(0, fromName.length() - "_the_end".length())
+                        : "world";
+                World over = Bukkit.getWorld(overName);
+                if (over == null) {
+                    event.setCancelled(true);
+                    player.sendMessage(PREFIX + ChatColor.RED + "Overworld not available.");
+                    return;
+                }
+                event.setCancelled(true);
+                player.teleport(over.getSpawnLocation());
+            }
         }
     }
 

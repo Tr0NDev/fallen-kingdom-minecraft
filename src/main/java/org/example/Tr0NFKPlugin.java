@@ -56,7 +56,6 @@ public class Tr0NFKPlugin extends JavaPlugin {
         playerStatsManager = new PlayerStatsManager();
         teamManager = new TeamManager(this, settingsManager);
         teamSidebarManager = new TeamSidebarManager(this, teamManager, settingsManager);
-        capSidebarManager = new CapSidebarManager(this, settingsManager, teamManager, teamSidebarManager);
         settingsCommand = new FkSettingsCommand(settingsManager, teamManager);
         kothManager = new KothManager(this);
         kothCommand = new KothCommand(this, kothManager);
@@ -72,9 +71,12 @@ public class Tr0NFKPlugin extends JavaPlugin {
         dataStore = new PluginDataStore(this, teamManager, settingsManager, gameStateManager, gameplayCapListener, playerStatsManager, kothManager);
         dataStore.load();
         mapVoteManager = new MapVoteManager(this, dataStore, teamManager, teamSidebarManager, gameStateManager);
+        mapVoteManager.loadAllDimensions();
         settingsCommand.setPluginDataStore(dataStore);
         gameStateManager.setDataStore(dataStore);
         gameStateManager.enforceAdventureModeWhenStopped();
+        capSidebarManager = new CapSidebarManager(this, settingsManager, teamManager, teamSidebarManager, gameStateManager);
+
 
         teamManager.setSaveAction(new Runnable() {
             @Override

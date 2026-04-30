@@ -856,6 +856,8 @@ public class MapVoteManager implements Listener {
     private World loadOrGetWorld(String mapName) {
         World alreadyLoaded = Bukkit.getWorld(mapName);
         if (alreadyLoaded != null) {
+            loadOrGetDimension(mapName + "_nether", World.Environment.NETHER);
+            loadOrGetDimension(mapName + "_the_end", World.Environment.THE_END);
             return alreadyLoaded;
         }
 
@@ -865,8 +867,37 @@ public class MapVoteManager implements Listener {
 
         WorldCreator creator = new WorldCreator(mapName);
         creator.environment(World.Environment.NORMAL);
-        return creator.createWorld();
+        World world = creator.createWorld();
+
+        loadOrGetDimension(mapName + "_nether", World.Environment.NETHER);
+        loadOrGetDimension(mapName + "_the_end", World.Environment.THE_END);
+
+        return world;
     }
+
+    private World loadOrGetDimension(String worldName, World.Environment environment) {
+        World existing = Bukkit.getWorld(worldName);
+        if (existing != null) return existing;
+
+        WorldCreator creator = new WorldCreator(worldName);
+        creator.environment(environment);
+        try {
+            return creator.createWorld();
+        } catch (Exception e) {
+            Bukkit.getLogger().warning("[FK] Failed to load dimension " + worldName + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    public void loadAllDimensions() {
+        for (String mapName : getConfiguredMapNames()) {
+            World over = Bukkit.getWorld(mapName);
+            if (over == null) continue; // seulement si la map est déjà chargée
+            loadOrGetDimension(mapName + "_nether", World.Environment.NETHER);
+            loadOrGetDimension(mapName + "_the_end", World.Environment.THE_END);
+        }
+    }
+
 
     private MapDescription readMapDescription(String mapName) {
         File worldFolder = new File(Bukkit.getWorldContainer(), mapName);

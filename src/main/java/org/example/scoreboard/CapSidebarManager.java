@@ -21,6 +21,7 @@ import org.bukkit.scoreboard.ScoreboardManager;
 import org.example.settings.SettingsManager;
 import org.example.team.TeamData;
 import org.example.team.TeamManager;
+import org.example.game.GameStateManager;
 
 public class CapSidebarManager {
 
@@ -31,15 +32,17 @@ public class CapSidebarManager {
     private final SettingsManager settingsManager;
     private final TeamManager teamManager;
     private final TeamSidebarManager teamSidebarManager;
+    private final GameStateManager gameStateManager;
     private final Set<UUID> enabledViewers = new HashSet<UUID>();
     private final Map<UUID, Scoreboard> scoreboards = new HashMap<UUID, Scoreboard>();
     private BukkitTask task;
 
-    public CapSidebarManager(JavaPlugin plugin, SettingsManager settingsManager, TeamManager teamManager, TeamSidebarManager teamSidebarManager) {
+    public CapSidebarManager(JavaPlugin plugin, SettingsManager settingsManager, TeamManager teamManager, TeamSidebarManager teamSidebarManager, GameStateManager gameStateManager) {
         this.plugin = plugin;
         this.settingsManager = settingsManager;
         this.teamManager = teamManager;
         this.teamSidebarManager = teamSidebarManager;
+        this.gameStateManager = gameStateManager;
     }
 
     public boolean toggle(Player player) {
@@ -197,6 +200,16 @@ public class CapSidebarManager {
         int currentDay = settingsManager.getCurrentDay();
         List<String> lines = new ArrayList<String>();
         lines.add(makeDayLine("Day", currentDay));
+
+        String nextDay;
+        if (gameStateManager != null && gameStateManager.isRunning()) {
+            nextDay = gameStateManager.getFormattedTimeUntilNextDay();
+        } else {
+            plugin.getLogger().info("isRunning=" + (gameStateManager != null ? gameStateManager.isRunning() : "gsm null"));
+            nextDay = "00:20:00";
+        }
+        lines.add(ChatColor.GRAY + "Next day: " + ChatColor.AQUA + nextDay);
+
         lines.add(makeDayLine("Nether cap", settingsManager.getNetherCapDay(), currentDay));
         lines.add(makeDayLine("End cap", settingsManager.getEndCapDay(), currentDay));
         lines.add(makeDayLine("PvP cap", settingsManager.getPvpCapDay(), currentDay));

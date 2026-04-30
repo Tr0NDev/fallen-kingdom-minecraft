@@ -1658,8 +1658,13 @@ public class TeamManager implements Listener {
             return true;
         }
 
-        if (block == null || block.getWorld() == null) {
-            return false;
+        if (block == null) {
+            return true;
+        }
+
+        World world = block.getWorld();
+        if (world != null && (world.getEnvironment() == World.Environment.NETHER || world.getEnvironment() == World.Environment.THE_END)) {
+            return true;
         }
 
         if (isInsideTeamBase(player, block.getLocation())) {
