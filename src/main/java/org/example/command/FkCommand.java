@@ -7,6 +7,7 @@ import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.WorldCreator;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -90,6 +91,9 @@ public class FkCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(ChatColor.AQUA + "/fk map switch <map> [player|all]" + ChatColor.GRAY + " - switch map and teleport targets");
                 player.sendMessage(ChatColor.AQUA + "/fk map timer <seconds>" + ChatColor.GRAY + " - set map vote timer");
                 player.sendMessage(ChatColor.AQUA + "/fk map clone <map> [newname]" + ChatColor.GRAY + " - clone a map config");
+                player.sendMessage(ChatColor.AQUA + "/fk map load <map>" + ChatColor.GRAY + " - load a world into memory");
+                player.sendMessage(ChatColor.AQUA + "/fk map load list" + ChatColor.GRAY + " - list all currently loaded worlds");
+                player.sendMessage(ChatColor.AQUA + "/fk map unload <map>" + ChatColor.GRAY + " - unload a world from memory");
                 player.sendMessage(ChatColor.AQUA + "/fk creeper <0-100>" + ChatColor.GRAY + " - set charged creeper spawn chance");
                 player.sendMessage(ChatColor.AQUA + "/fk item rename <name>" + ChatColor.GRAY + " - rename held item");
                 player.sendMessage(ChatColor.AQUA + "/fk item enchant <enchant> <level>" + ChatColor.GRAY + " - enchant held item");
@@ -265,6 +269,37 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (command.getName().equalsIgnoreCase("fk") && args.length == 3
+                && args[0].equalsIgnoreCase("map") && args[1].equalsIgnoreCase("unload")) {
+            if (!player.isOp()) {
+                player.sendMessage(PREFIX + ChatColor.RED + "You do not have the required permissions.");
+                return true;
+            }
+            unloadMap(player, args[2]);
+            return true;
+        }
+
+        if (command.getName().equalsIgnoreCase("fk") && args.length >= 2
+                && args[0].equalsIgnoreCase("map") && args[1].equalsIgnoreCase("load")) {
+            if (!player.isOp()) {
+                player.sendMessage(PREFIX + ChatColor.RED + "You do not have the required permissions.");
+                return true;
+            }
+
+            if (args.length == 2) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Usage: /fk map load <map> | /fk map load list");
+                return true;
+            }
+
+            if (args[2].equalsIgnoreCase("list")) {
+                listLoadedWorlds(player);
+                return true;
+            }
+
+            loadMap(player, args[2]);
+            return true;
+        }
+
         if (command.getName().equalsIgnoreCase("fk") && args.length >= 3
                 && args[0].equalsIgnoreCase("map") && args[1].equalsIgnoreCase("clone")) {
             if (!player.isOp()) {
@@ -275,7 +310,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             String sourceMap = args[2];
             String destMap = (args.length >= 4) ? args[3] : null;
 
-            player.sendMessage(PREFIX + ChatColor.YELLOW + "Chargement en cours, clonage de la map...");
+            player.sendMessage(PREFIX + ChatColor.YELLOW + "Loading, cloning map...");
             cloneMap(player, sourceMap, destMap);
             return true;
         }
@@ -406,7 +441,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        player.sendMessage(PREFIX + ChatColor.YELLOW + "Usage: /fk, /fk help, /fk show, /fk stats, /fk team, /fk settings, /fk koth, /fk koth start, /fk koth stop, /fk setday <number>, /fk start, /fk pause, /fk resume, /fk stop, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>, /fk map clone <map> [newname]");
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Usage: /fk, /fk help, /fk show, /fk stats, /fk team, /fk settings, /fk koth, /fk koth start, /fk koth stop, /fk setday <number>, /fk start, /fk pause, /fk resume, /fk stop, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>, /fk map clone <map> [newname], /fk map load <map>, /fk map load list, /fk map unload <map>");
         return true;
     }
 
@@ -488,6 +523,28 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             if ("timer".startsWith(input)) completions.add("timer");
             if ("clone".startsWith(input)) completions.add("clone");
             if ("delete".startsWith(input)) completions.add("delete");
+            if ("unload".startsWith(input)) completions.add("unload");
+            if ("load".startsWith(input)) completions.add("load");
+            return completions;
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("map") && args[1].equalsIgnoreCase("load")) {
+            List<String> completions = new ArrayList<String>();
+            String input = args[2].toLowerCase();
+            if ("list".startsWith(input)) completions.add("list");
+            java.io.File worldContainer = Bukkit.getWorldContainer();
+            java.io.File[] worldFolders = worldContainer.listFiles();
+            if (worldFolders != null) {
+                for (java.io.File folder : worldFolders) {
+                    if (!folder.isDirectory()) continue;
+                    if (!new java.io.File(folder, "level.dat").exists()) continue;
+                    String folderName = folder.getName();
+                    if (Bukkit.getWorld(folderName) != null) continue;
+                    if (folderName.toLowerCase().startsWith(input)) {
+                        completions.add(folderName);
+                    }
+                }
+            }
             return completions;
         }
 
@@ -508,6 +565,17 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             for (String mapName : mapVoteManager.getConfiguredMapNames()) {
                 if (mapName.toLowerCase().startsWith(input)) {
                     completions.add(mapName);
+                }
+            }
+            return completions;
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("map") && args[1].equalsIgnoreCase("unload")) {
+            List<String> completions = new ArrayList<String>();
+            String input = args[2].toLowerCase();
+            for (org.bukkit.World w : Bukkit.getWorlds()) {
+                if (w.getName().toLowerCase().startsWith(input)) {
+                    completions.add(w.getName());
                 }
             }
             return completions;
@@ -559,6 +627,83 @@ public class FkCommand implements CommandExecutor, TabCompleter {
     }
 
 
+    private void loadMap(Player player, String mapName) {
+        if (Bukkit.getWorld(mapName) != null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "World \"" + mapName + "\" is already loaded.");
+            return;
+        }
+
+        java.io.File worldContainer = Bukkit.getWorldContainer();
+        java.io.File worldFolder = new java.io.File(worldContainer, mapName);
+
+        if (!worldFolder.exists() || !worldFolder.isDirectory()) {
+            player.sendMessage(PREFIX + ChatColor.RED + "No world folder found for \"" + mapName + "\".");
+            return;
+        }
+
+        if (!new java.io.File(worldFolder, "level.dat").exists()) {
+            player.sendMessage(PREFIX + ChatColor.RED + "The folder \"" + mapName + "\" does not appear to be a valid world (missing level.dat).");
+            return;
+        }
+
+        java.io.File sessionLock = new java.io.File(worldFolder, "session.lock");
+        if (sessionLock.exists()) {
+            sessionLock.delete();
+        }
+
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Loading world \"" + mapName + "\"...");
+
+        org.bukkit.World loaded = Bukkit.createWorld(new WorldCreator(mapName));
+
+        if (loaded != null) {
+            player.sendMessage(PREFIX + ChatColor.GREEN + "World \"" + mapName + "\" loaded successfully.");
+        } else {
+            player.sendMessage(PREFIX + ChatColor.RED + "Failed to load world \"" + mapName + "\".");
+        }
+    }
+
+    private void listLoadedWorlds(Player player) {
+        List<org.bukkit.World> worlds = Bukkit.getWorlds();
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Loaded worlds (" + worlds.size() + "):");
+        for (org.bukkit.World world : worlds) {
+            int players = world.getPlayers().size();
+            player.sendMessage(ChatColor.GRAY + "  - " + ChatColor.AQUA + world.getName()
+                    + ChatColor.GRAY + " | players: " + ChatColor.WHITE + players
+                    + ChatColor.GRAY + " | env: " + ChatColor.WHITE + world.getEnvironment().name());
+        }
+    }
+
+    private void unloadMap(Player player, String mapName) {
+        org.bukkit.World world = Bukkit.getWorld(mapName);
+        if (world == null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "World \"" + mapName + "\" is not loaded.");
+            return;
+        }
+
+        if (Bukkit.getWorlds().get(0).equals(world)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Cannot unload the default world.");
+            return;
+        }
+
+        org.bukkit.World fallback = Bukkit.getWorlds().get(0);
+        org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
+
+        for (org.bukkit.entity.Player online : new java.util.ArrayList<>(world.getPlayers())) {
+            online.teleport(fallbackLoc);
+            online.sendMessage(PREFIX + ChatColor.YELLOW + "The map \"" + mapName + "\" is being unloaded, you have been teleported.");
+        }
+
+        world.save();
+        boolean success = Bukkit.unloadWorld(world, true);
+
+        if (success) {
+            player.sendMessage(PREFIX + ChatColor.GREEN + "World \"" + mapName + "\" unloaded successfully.");
+        } else {
+            player.sendMessage(PREFIX + ChatColor.RED + "Failed to unload world \"" + mapName + "\". It may still have players or be protected.");
+        }
+    }
+
+
     private void cloneMap(Player player, String sourceMap, String destName) {
         org.bukkit.plugin.java.JavaPlugin plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
         java.io.File pluginFolder = plugin.getDataFolder();
@@ -569,8 +714,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        org.bukkit.configuration.file.YamlConfiguration mapConfig =
-                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(mapYml);
+        org.bukkit.configuration.file.YamlConfiguration mapConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(mapYml);
 
         java.util.List<String> mapList = mapConfig.getStringList("maps");
 
@@ -691,13 +835,11 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             if (value instanceof org.bukkit.configuration.ConfigurationSection) {
                 org.bukkit.configuration.ConfigurationSection child = (org.bukkit.configuration.ConfigurationSection) value;
                 if (key.equals(sourceWorld)) {
-                    org.bukkit.configuration.ConfigurationSection parent = section;
                     String parentPath = section.getCurrentPath();
-                    String newPath = (parentPath == null || parentPath.isEmpty())  ? destWorld : parentPath + "." + destWorld;
+                    String newPath = (parentPath == null || parentPath.isEmpty()) ? destWorld : parentPath + "." + destWorld;
                     java.util.Map<String, Object> values = child.getValues(true);
                     section.set(key, null);
-                    org.bukkit.configuration.ConfigurationSection newSection =
-                            root.createSection(newPath);
+                    org.bukkit.configuration.ConfigurationSection newSection = root.createSection(newPath);
                     for (java.util.Map.Entry<String, Object> entry : values.entrySet()) {
                         Object val = entry.getValue();
                         if (val instanceof String) {
@@ -838,7 +980,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             java.io.File[] children = src.listFiles();
             if (children != null) {
                 for (java.io.File child : children) {
-
                     if (child.getName().equalsIgnoreCase("uid.dat")) {
                         continue;
                     }
@@ -894,23 +1035,23 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         String normalized = input.trim().toUpperCase();
         if (normalized.isEmpty()) return null;
 
-        if (normalized.equals("SHARPNESS"))                                         normalized = "DAMAGE_ALL";
-        else if (normalized.equals("SMITE"))                                        normalized = "DAMAGE_UNDEAD";
+        if (normalized.equals("SHARPNESS"))                                             normalized = "DAMAGE_ALL";
+        else if (normalized.equals("SMITE"))                                            normalized = "DAMAGE_UNDEAD";
         else if (normalized.equals("BANE_OF_ARTHROPODS") || normalized.equals("BANE")) normalized = "DAMAGE_ARTHROPODS";
-        else if (normalized.equals("EFFICIENCY"))                                   normalized = "DIG_SPEED";
-        else if (normalized.equals("UNBREAKING"))                                   normalized = "DURABILITY";
-        else if (normalized.equals("FORTUNE"))                                      normalized = "LOOT_BONUS_BLOCKS";
-        else if (normalized.equals("LOOTING"))                                      normalized = "LOOT_BONUS_MOBS";
-        else if (normalized.equals("RESPIRATION"))                                  normalized = "OXYGEN";
-        else if (normalized.equals("PROTECTION"))                                   normalized = "PROTECTION_ENVIRONMENTAL";
-        else if (normalized.equals("POWER"))                                        normalized = "ARROW_DAMAGE";
-        else if (normalized.equals("PUNCH"))                                        normalized = "ARROW_KNOCKBACK";
-        else if (normalized.equals("INFINITY"))                                     normalized = "ARROW_INFINITE";
-        else if (normalized.equals("FLAME"))                                        normalized = "ARROW_FIRE";
-        else if (normalized.equals("FIRE_PROTECTION"))                              normalized = "PROTECTION_FIRE";
-        else if (normalized.equals("BLAST_PROTECTION"))                             normalized = "PROTECTION_EXPLOSIONS";
-        else if (normalized.equals("PROJECTILE_PROTECTION"))                        normalized = "PROTECTION_PROJECTILE";
-        else if (normalized.equals("AQUA_AFFINITY"))                                normalized = "WATER_WORKER";
+        else if (normalized.equals("EFFICIENCY"))                                       normalized = "DIG_SPEED";
+        else if (normalized.equals("UNBREAKING"))                                       normalized = "DURABILITY";
+        else if (normalized.equals("FORTUNE"))                                          normalized = "LOOT_BONUS_BLOCKS";
+        else if (normalized.equals("LOOTING"))                                          normalized = "LOOT_BONUS_MOBS";
+        else if (normalized.equals("RESPIRATION"))                                      normalized = "OXYGEN";
+        else if (normalized.equals("PROTECTION"))                                       normalized = "PROTECTION_ENVIRONMENTAL";
+        else if (normalized.equals("POWER"))                                            normalized = "ARROW_DAMAGE";
+        else if (normalized.equals("PUNCH"))                                            normalized = "ARROW_KNOCKBACK";
+        else if (normalized.equals("INFINITY"))                                         normalized = "ARROW_INFINITE";
+        else if (normalized.equals("FLAME"))                                            normalized = "ARROW_FIRE";
+        else if (normalized.equals("FIRE_PROTECTION"))                                  normalized = "PROTECTION_FIRE";
+        else if (normalized.equals("BLAST_PROTECTION"))                                 normalized = "PROTECTION_EXPLOSIONS";
+        else if (normalized.equals("PROJECTILE_PROTECTION"))                            normalized = "PROTECTION_PROJECTILE";
+        else if (normalized.equals("AQUA_AFFINITY"))                                    normalized = "WATER_WORKER";
 
         Enchantment enchantment = Enchantment.getByName(normalized);
         if (enchantment != null) return enchantment;
