@@ -1675,6 +1675,12 @@ public class TeamManager implements Listener {
             return true;
         }
 
+        if (block.getType() == Material.FIRE && settingsManager.isTntCapEnabled()
+                && player.getItemInHand() != null
+                && player.getItemInHand().getType() == Material.FLINT_AND_STEEL) {
+            return true;
+        }
+
         if (isLocationInsideEnemyBase(player, block.getLocation())) {
             return false;
         }
@@ -1757,6 +1763,11 @@ public class TeamManager implements Listener {
 
         if (isLocationInsideEnemyBase(player, block == null ? null : block.getLocation())) {
             if (block != null && block.getType() == Material.TNT && settingsManager.isTntCapEnabled()) {
+                return true;
+            }
+            if (block != null && block.getType() == Material.FIRE && settingsManager.isTntCapEnabled()
+                    && player.getItemInHand() != null
+                    && player.getItemInHand().getType() == Material.FLINT_AND_STEEL) {
                 return true;
             }
             return false;

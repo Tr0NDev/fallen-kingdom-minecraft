@@ -50,6 +50,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
     private PlayerStatsManager playerStatsManager;
     private MapVoteManager mapVoteManager;
 
+
     @Override
     public void onEnable() {
         settingsManager = new SettingsManager();
@@ -65,8 +66,12 @@ public class Tr0NFKPlugin extends JavaPlugin {
         settingsCommand.setPlayerStatsManager(playerStatsManager);
         settingsCommand.setTeamSidebarManager(teamSidebarManager);
         gameStateManager.setTeamSidebarManager(teamSidebarManager);
+        gameStateManager.setTeamSidebarManager(teamSidebarManager);
         gameStateManager.setPlayerStatsManager(playerStatsManager);
+        capSidebarManager = new CapSidebarManager(this, settingsManager, teamManager, teamSidebarManager, gameStateManager);
+        gameStateManager.setCapSidebarManager(capSidebarManager);
         gameplayCapListener = new GameplayCapListener(this, teamManager, settingsManager, gameStateManager);
+
         teamManager.setGameStateManager(gameStateManager);
         dataStore = new PluginDataStore(this, teamManager, settingsManager, gameStateManager, gameplayCapListener, playerStatsManager, kothManager);
         dataStore.load();
@@ -75,8 +80,6 @@ public class Tr0NFKPlugin extends JavaPlugin {
         settingsCommand.setPluginDataStore(dataStore);
         gameStateManager.setDataStore(dataStore);
         gameStateManager.enforceAdventureModeWhenStopped();
-        capSidebarManager = new CapSidebarManager(this, settingsManager, teamManager, teamSidebarManager, gameStateManager);
-
 
         teamManager.setSaveAction(new Runnable() {
             @Override
@@ -118,8 +121,10 @@ public class Tr0NFKPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PauseProtectionListener(gameStateManager), this);
         getServer().getPluginManager().registerEvents(new WorldDifficultyListener(dataStore), this);
         getServer().getPluginManager().registerEvents(new FlyGuiListener(), this);
+        getServer().getPluginManager().registerEvents(new org.example.listener.BedSpawnListener(), this);
         getServer().getPluginManager().registerEvents(kothCommand, this);
         getServer().getPluginManager().registerEvents(mapVoteManager, this);
+
 
         new org.example.listener.StatsMenuListener(settingsCommand, this);
         settingsCommand.applyDayToWorlds();
@@ -183,8 +188,10 @@ public class Tr0NFKPlugin extends JavaPlugin {
         if (flyCommand != null) {
             flyCommand.setExecutor(new FlyCommand());
         }
+        getServer().getPluginManager().registerEvents(new org.example.listener.BedSpawnListener(), this);
 
         Bukkit.getConsoleSender().sendMessage(PREFIX + ChatColor.GREEN + "Plugin enabled!");
+
     }
 
     @Override

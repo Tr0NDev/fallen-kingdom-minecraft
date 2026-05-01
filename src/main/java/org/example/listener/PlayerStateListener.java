@@ -307,7 +307,7 @@ public class PlayerStateListener implements Listener {
         String publicMessage = entering
                 ? ChatColor.GREEN + player.getName() + " entered " + chestName + ChatColor.GREEN + " chest room."
                 : ChatColor.RED + player.getName() + " left " + chestName + ChatColor.RED + " chest room.";
-        Bukkit.broadcastMessage(PREFIX + publicMessage);
+        player.sendMessage(PREFIX + publicMessage);
     }
 
     private boolean isOwnTeam(Player player, TeamData team) {

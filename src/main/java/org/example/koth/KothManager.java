@@ -301,10 +301,7 @@ public class KothManager {
         }
 
         String message = "" + ChatColor.GOLD + percentage + "% " + bar.toString();
-
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            sendActionBar(player, message);
-        }
+        sendActionBar(currentKing, message);
     }
 
     private void sendActionBar(Player player, String message) {

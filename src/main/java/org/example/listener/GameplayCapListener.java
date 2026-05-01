@@ -42,11 +42,15 @@ import org.example.game.GameStateManager;
 import org.example.settings.SettingsManager;
 import org.example.team.TeamData;
 import org.example.team.TeamManager;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 public class GameplayCapListener implements Listener {
 
     private static final String PREFIX = ChatColor.translateAlternateColorCodes('&', "&2[&aFK&2] ");
 
+    private final Set<UUID> endPortalCooldown = new HashSet<UUID>();
     private final JavaPlugin plugin;
     private final TeamManager teamManager;
     private final SettingsManager settingsManager;
@@ -234,8 +238,12 @@ public class GameplayCapListener implements Listener {
 
         if (event.getCause() == PlayerTeleportEvent.TeleportCause.END_PORTAL) {
             if (!settingsManager.isEndCapEnabled()) {
+                if (!endPortalCooldown.contains(player.getUniqueId())) {
+                    endPortalCooldown.add(player.getUniqueId());
+                    player.sendMessage(PREFIX + ChatColor.RED + "End portals are disabled.");
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> endPortalCooldown.remove(player.getUniqueId()), 40L);
+                }
                 event.setCancelled(true);
-                player.sendMessage(PREFIX + ChatColor.RED + "End portals are disabled.");
                 return;
             }
 
@@ -243,8 +251,12 @@ public class GameplayCapListener implements Listener {
                 String endName = fromName + "_the_end";
                 World end = Bukkit.getWorld(endName);
                 if (end == null) {
+                    if (!endPortalCooldown.contains(player.getUniqueId())) {
+                        endPortalCooldown.add(player.getUniqueId());
+                        player.sendMessage(PREFIX + ChatColor.RED + "The End not available for this map.");
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> endPortalCooldown.remove(player.getUniqueId()), 40L);
+                    }
                     event.setCancelled(true);
-                    player.sendMessage(PREFIX + ChatColor.RED + "The End not available for this map.");
                     return;
                 }
                 event.setCancelled(true);
@@ -258,8 +270,12 @@ public class GameplayCapListener implements Listener {
                         : "world";
                 World over = Bukkit.getWorld(overName);
                 if (over == null) {
+                    if (!endPortalCooldown.contains(player.getUniqueId())) {
+                        endPortalCooldown.add(player.getUniqueId());
+                        player.sendMessage(PREFIX + ChatColor.RED + "Overworld not available.");
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> endPortalCooldown.remove(player.getUniqueId()), 40L);
+                    }
                     event.setCancelled(true);
-                    player.sendMessage(PREFIX + ChatColor.RED + "Overworld not available.");
                     return;
                 }
                 event.setCancelled(true);

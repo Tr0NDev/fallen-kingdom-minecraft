@@ -57,8 +57,12 @@ public class GameStateManager {
     private long persistedPlayedMillis;
     private final Map<Integer, BaseCaptureProgress> baseCaptureProgress = new ConcurrentHashMap<Integer, BaseCaptureProgress>();
     private PlayerStatsManager playerStatsManager;
-
     private Runnable saveAction = NO_OP;
+    private org.example.scoreboard.CapSidebarManager capSidebarManager;
+
+    public void setCapSidebarManager(org.example.scoreboard.CapSidebarManager capSidebarManager) {
+        this.capSidebarManager = capSidebarManager;
+    }
 
     private static class BaseCaptureProgress {
         private final int attackingTeamId;
@@ -145,15 +149,12 @@ public class GameStateManager {
         return getEffectivePlayedMillis();
     }
 
-    public void start() {
-        start(null);
-    }
 
     public void start(Player preferredStartPlayer) {
         if (!running) {
             running = true;
             paused = false;
-            settingsManager.setCurrentDay(0);
+            settingsManager.setCurrentDay(1);
             settingsCommand.applyDayToWorlds();
             kothManager.resetKothSchedule();
             resetMatchTiming(0L);
@@ -166,6 +167,15 @@ public class GameStateManager {
                 playerStatsManager.resetAll();
             }
             giveBaseLoadoutToTeamPlayers();
+
+            if (capSidebarManager != null) {
+                for (Player online : Bukkit.getOnlinePlayers()) {
+                    if (online != null && online.isOnline()) {
+                        capSidebarManager.setEnabled(online, true);
+                    }
+                }
+            }
+
             saveAction.run();
             Bukkit.broadcastMessage(PREFIX + ChatColor.GREEN + ChatColor.BOLD + "The game has started.");
             return;
@@ -272,7 +282,9 @@ public class GameStateManager {
                     continue;
                 }
 
-                if (kothManager != null && kothManager.isActive() && kothManager.getCurrentKing() != null) {
+                if (kothManager != null && kothManager.isActive()
+                        && kothManager.getCurrentKing() != null
+                        && kothManager.getCurrentKing().equals(player)) {
                     continue;
                 }
 
@@ -417,6 +429,11 @@ public class GameStateManager {
         if (nextDayAtMillis <= 0L) {
             nextDayAtMillis = System.currentTimeMillis() + DAY_DURATION_MILLIS;
         }
+
+        applyNaturalDayCycle(true);
+
+        applyMinecraftTime(0L);
+
         dayCycleTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (!running || paused) {
                 return;
@@ -427,19 +444,40 @@ public class GameStateManager {
                 if (kothManager != null && kothManager.isActive()) {
                     kothManager.stopKoth();
                 }
-                
+
                 int previousDay = settingsManager.getCurrentDay();
                 settingsManager.addDay(1);
                 saveAction.run();
                 settingsCommand.applyDayToWorlds();
                 settingsCommand.announceActivatedCaps(previousDay, settingsManager.getCurrentDay());
                 kothManager.startKothIfApplicable(settingsManager.getCurrentDay());
-                Bukkit.broadcastMessage(PREFIX + ChatColor.AQUA + "Day " + settingsManager.getCurrentDay() + " has begun.");
+                Bukkit.broadcastMessage(PREFIX + ChatColor.AQUA + "Day "
+                        + settingsManager.getCurrentDay() + " has begun.");
                 nextDayAtMillis += DAY_DURATION_MILLIS;
+
+                applyMinecraftTime(0L);
             }
 
             tickBaseCaptures(now);
         }, 20L, 20L);
+    }
+
+    private void applyNaturalDayCycle(boolean enabled) {
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            if (world == null) continue;
+            if (world.getEnvironment() == org.bukkit.World.Environment.NORMAL) {
+                world.setGameRuleValue("doDaylightCycle", enabled ? "true" : "false");
+            }
+        }
+    }
+
+    private void applyMinecraftTime(long minecraftTime) {
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            if (world == null) continue;
+            if (world.getEnvironment() == org.bukkit.World.Environment.NORMAL) {
+                world.setTime(minecraftTime);
+            }
+        }
     }
 
     private void sendActionBar(Player player, String message) {
@@ -735,26 +773,60 @@ public class GameStateManager {
             target = dataStore.getGameStartLocation();
         }
 
+        if (target != null && target.getWorld() != null) {
+            String activeMap = dataStore != null ? dataStore.getActiveMapProfileName() : null;
+            String targetWorldName = target.getWorld().getName();
+
+            if (activeMap != null && !targetWorldName.equalsIgnoreCase(activeMap)) {
+                org.bukkit.World activeWorld = Bukkit.getWorld(activeMap);
+                if (activeWorld != null) {
+                    target = new Location(
+                            activeWorld,
+                            target.getX(),
+                            target.getY(),
+                            target.getZ(),
+                            target.getYaw(),
+                            target.getPitch()
+                    );
+                } else {
+                    target = null;
+                }
+            }
+        }
 
         if (target == null || target.getWorld() == null) {
             if (preferredStartPlayer != null && preferredStartPlayer.getWorld() != null) {
                 target = preferredStartPlayer.getLocation().clone();
-            } else if (!Bukkit.getWorlds().isEmpty()) {
-                target = Bukkit.getWorlds().get(0).getSpawnLocation().clone();
             } else {
-                return;
+                String activeMap = dataStore != null ? dataStore.getActiveMapProfileName() : null;
+                if (activeMap != null) {
+                    org.bukkit.World activeWorld = Bukkit.getWorld(activeMap);
+                    if (activeWorld != null) {
+                        target = activeWorld.getSpawnLocation().clone();
+                    }
+                }
+                if (target == null && !Bukkit.getWorlds().isEmpty()) {
+                    target = Bukkit.getWorlds().get(0).getSpawnLocation().clone();
+                }
+                if (target == null) {
+                    return;
+                }
             }
         }
 
         target = target.clone().add(0.5D, 0.0D, 0.5D);
+
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
             onlinePlayer.teleport(target);
             onlinePlayer.setBedSpawnLocation(target, true);
         }
 
-
         try {
-            target.getWorld().setSpawnLocation(target.getBlockX(), target.getBlockY(), target.getBlockZ());
+            target.getWorld().setSpawnLocation(
+                    target.getBlockX(),
+                    target.getBlockY(),
+                    target.getBlockZ()
+            );
         } catch (Exception ignored) {
         }
     }
