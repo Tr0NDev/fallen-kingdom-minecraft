@@ -39,9 +39,41 @@ public class PluginDataStore {
     private String activeMapProfileName = "default";
     private boolean loading;
     private YamlConfiguration configuration;
+    private static final String ACTIVE_PROFILE_FILE_NAME = "active-profile.yml";
 
+
+    private void saveActiveProfile() {
+        File file = new File(plugin.getDataFolder(), ACTIVE_PROFILE_FILE_NAME);
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("activeMapProfile", activeMapProfileName);
+        try {
+            config.save(file);
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not save active profile: " + exception.getMessage());
+        }
+    }
+
+    private String loadActiveProfile() {
+        File file = new File(plugin.getDataFolder(), ACTIVE_PROFILE_FILE_NAME);
+        if (file.exists()) {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String name = config.getString("activeMapProfile", "default");
+            return name == null || name.trim().isEmpty() ? "default" : name.trim();
+        }
+
+        if (defaultDataFile.exists()) {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(defaultDataFile);
+            String name = config.getString("meta.activeMapProfileName", "default");
+            if (name != null && !name.trim().isEmpty() && !"default".equalsIgnoreCase(name.trim())) {
+                plugin.getLogger().info("[FK] Migrating active profile from data.yml: " + name.trim());
+                return name.trim();
+            }
+        }
+
+        return "default";
+    }
     public PluginDataStore(JavaPlugin plugin, TeamManager teamManager, SettingsManager settingsManager,
-            GameStateManager gameStateManager, GameplayCapListener gameplayCapListener, PlayerStatsManager playerStatsManager, KothManager kothManager) {
+                           GameStateManager gameStateManager, GameplayCapListener gameplayCapListener, PlayerStatsManager playerStatsManager, KothManager kothManager) {
         this.plugin = plugin;
         this.teamManager = teamManager;
         this.settingsManager = settingsManager;
@@ -51,7 +83,24 @@ public class PluginDataStore {
         this.kothManager = kothManager;
         this.defaultDataFile = new File(plugin.getDataFolder(), "data.yml");
         this.mapProfilesFolder = new File(plugin.getDataFolder(), "map-profiles");
-        this.dataFile = defaultDataFile;
+
+        this.activeMapProfileName = loadActiveProfile();
+        if ("default".equalsIgnoreCase(activeMapProfileName)) {
+            this.dataFile = defaultDataFile;
+        } else {
+            if (!mapProfilesFolder.exists()) {
+                mapProfilesFolder.mkdirs();
+            }
+            this.dataFile = new File(mapProfilesFolder, toProfileFileName(activeMapProfileName));
+            if (!this.dataFile.exists()) {
+                plugin.getLogger().warning("[FK] Profile file not found for '" + activeMapProfileName + "': " + this.dataFile.getAbsolutePath() + " — falling back to default.");
+                this.activeMapProfileName = "default";
+                this.dataFile = defaultDataFile;
+            }
+        }
+
+        saveActiveProfile();
+        plugin.getLogger().info("[FK][Debug] PluginDataStore initialized with profile: '" + activeMapProfileName + "' -> " + dataFile.getAbsolutePath());
     }
 
     public synchronized boolean switchToMapProfile(String mapName) {
@@ -73,6 +122,7 @@ public class PluginDataStore {
             activeMapProfileName = trimmed;
         }
 
+        saveActiveProfile();
         configuration = null;
         load();
         return true;
@@ -278,199 +328,198 @@ public class PluginDataStore {
 
     public void load() {
         loading = true;
+        plugin.getLogger().info("[FK][Debug] Loading profile: '" + activeMapProfileName + "' from file: " + dataFile.getAbsolutePath());
         try {
-        ensureFileExists();
-        configuration = YamlConfiguration.loadConfiguration(dataFile);
+            ensureFileExists();
+            configuration = YamlConfiguration.loadConfiguration(dataFile);
 
-        settingsManager.setBaseMessagesEnabled(configuration.getBoolean("settings.baseMessagesEnabled", false));
-        if (configuration.contains("settings.chestRoomMessagesEnabled")) {
-            settingsManager.setChestRoomMessagesEnabled(configuration.getBoolean("settings.chestRoomMessagesEnabled", true));
-        } else {
-            settingsManager.setChestRoomMessagesEnabled(configuration.getBoolean("settings.baseMessagesSelfOnly", true));
-        }
-        settingsManager.setCurrentDay(configuration.getInt("settings.currentDay", 0));
-        settingsManager.setNetherCapDay(readActivationDay("settings.netherCapDay", "settings.netherCapEnabled", 0));
-        settingsManager.setEndCapDay(readActivationDay("settings.endCapDay", "settings.endCapEnabled", 0));
-        settingsManager.setPvpCapDay(readActivationDay("settings.pvpCapDay", "settings.pvpCapEnabled", 0));
-        settingsManager.setTntCapDay(readActivationDay("settings.tntCapDay", "settings.tntCapEnabled", 0));
-        settingsManager.setFriendlyFireEnabled(readBinarySetting("settings.friendlyFireEnabled", "settings.friendlyFireDay", false));
-        settingsManager.setHealthBelowNameEnabled(readBinarySetting("settings.healthBelowNameEnabled", "settings.healthBelowNameDay", false));
-        settingsManager.setDayHudEnabled(configuration.getBoolean("settings.dayHudEnabled", true));
-        settingsManager.setNightVisionEnabled(configuration.getBoolean("settings.nightVisionEnabled", false));
-        settingsManager.setCavePlaceYLimit(configuration.getInt("settings.cavePlaceYLimit", 50));
-        settingsManager.setEnderPearlEnabled(configuration.getBoolean("settings.enderPearlEnabled", true));
-        settingsManager.setChargedCreeperDropTntEnabled(configuration.getBoolean("settings.chargedCreeperDropTntEnabled", false));
-        settingsManager.setChargedCreeperSpawnChance(configuration.getInt("settings.chargedCreeperSpawnChance", 0));
-        settingsManager.setTntClimbEnabled(configuration.getBoolean("settings.tntClimbEnabled", true));
-        settingsManager.setCompassEnabled(configuration.getBoolean("settings.compassEnabled", false));
-        settingsManager.setAutoPauseOnQuitEnabled(configuration.getBoolean("settings.autoPauseOnQuitEnabled", false));
-        settingsManager.setBucketAssaultEnabled(configuration.getBoolean("settings.bucketAssaultEnabled", true));
-        settingsManager.setNetherAssaultEnabled(configuration.getBoolean("settings.netherAssaultEnabled", true));
-        settingsManager.setPotionsEnabled(configuration.getBoolean("settings.potionsEnabled", true));
-        settingsManager.setColoredNamesEnabled(configuration.getBoolean("settings.coloredNamesEnabled", true));
-        settingsManager.setBaseCaptureTimeSeconds(configuration.getInt("settings.baseCaptureTimeSeconds", 30));
-        settingsManager.setBaseCaptureRequiredPlayers(configuration.getInt("settings.baseCaptureRequiredPlayers", 1));
-        settingsManager.setHungerConsumptionRate(configuration.getDouble("settings.hungerConsumptionRate", 1.0D));
-        if (configuration.contains("settings.deathLimit")) {
-            settingsManager.setDeathLimit(configuration.isInt("settings.deathLimit")
-                    ? Integer.valueOf(configuration.getInt("settings.deathLimit"))
-                    : null);
-        } else {
-            settingsManager.setDeathLimit(null);
-        }
-
-        Set<String> allowedBlocks = new java.util.HashSet<String>();
-        for (String materialName : configuration.getStringList("settings.allowedPlaceBlocks")) {
-            if (materialName.contains(":")) {
-                org.bukkit.inventory.ItemStack stack = settingsManager.fromBlockKey(materialName);
-                if (stack != null) {
-                    allowedBlocks.add(materialName);
-                }
-                continue;
+            settingsManager.setBaseMessagesEnabled(configuration.getBoolean("settings.baseMessagesEnabled", false));
+            if (configuration.contains("settings.chestRoomMessagesEnabled")) {
+                settingsManager.setChestRoomMessagesEnabled(configuration.getBoolean("settings.chestRoomMessagesEnabled", true));
+            } else {
+                settingsManager.setChestRoomMessagesEnabled(configuration.getBoolean("settings.baseMessagesSelfOnly", true));
+            }
+            settingsManager.setCurrentDay(configuration.getInt("settings.currentDay", 0));
+            settingsManager.setNetherCapDay(readActivationDay("settings.netherCapDay", "settings.netherCapEnabled", 0));
+            settingsManager.setEndCapDay(readActivationDay("settings.endCapDay", "settings.endCapEnabled", 0));
+            settingsManager.setPvpCapDay(readActivationDay("settings.pvpCapDay", "settings.pvpCapEnabled", 0));
+            settingsManager.setTntCapDay(readActivationDay("settings.tntCapDay", "settings.tntCapEnabled", 0));
+            settingsManager.setFriendlyFireEnabled(readBinarySetting("settings.friendlyFireEnabled", "settings.friendlyFireDay", false));
+            settingsManager.setHealthBelowNameEnabled(readBinarySetting("settings.healthBelowNameEnabled", "settings.healthBelowNameDay", false));
+            settingsManager.setDayHudEnabled(configuration.getBoolean("settings.dayHudEnabled", true));
+            settingsManager.setNightVisionEnabled(configuration.getBoolean("settings.nightVisionEnabled", false));
+            settingsManager.setCavePlaceYLimit(configuration.getInt("settings.cavePlaceYLimit", 50));
+            settingsManager.setEnderPearlEnabled(configuration.getBoolean("settings.enderPearlEnabled", true));
+            settingsManager.setChargedCreeperDropTntEnabled(configuration.getBoolean("settings.chargedCreeperDropTntEnabled", false));
+            settingsManager.setChargedCreeperSpawnChance(configuration.getInt("settings.chargedCreeperSpawnChance", 0));
+            settingsManager.setTntClimbEnabled(configuration.getBoolean("settings.tntClimbEnabled", true));
+            settingsManager.setCompassEnabled(configuration.getBoolean("settings.compassEnabled", false));
+            settingsManager.setAutoPauseOnQuitEnabled(configuration.getBoolean("settings.autoPauseOnQuitEnabled", false));
+            settingsManager.setBucketAssaultEnabled(configuration.getBoolean("settings.bucketAssaultEnabled", true));
+            settingsManager.setNetherAssaultEnabled(configuration.getBoolean("settings.netherAssaultEnabled", true));
+            settingsManager.setPotionsEnabled(configuration.getBoolean("settings.potionsEnabled", true));
+            settingsManager.setColoredNamesEnabled(configuration.getBoolean("settings.coloredNamesEnabled", true));
+            settingsManager.setBaseCaptureTimeSeconds(configuration.getInt("settings.baseCaptureTimeSeconds", 30));
+            settingsManager.setBaseCaptureRequiredPlayers(configuration.getInt("settings.baseCaptureRequiredPlayers", 1));
+            settingsManager.setHungerConsumptionRate(configuration.getDouble("settings.hungerConsumptionRate", 1.0D));
+            if (configuration.contains("settings.deathLimit")) {
+                settingsManager.setDeathLimit(configuration.isInt("settings.deathLimit")
+                        ? Integer.valueOf(configuration.getInt("settings.deathLimit"))
+                        : null);
+            } else {
+                settingsManager.setDeathLimit(null);
             }
 
-            Material material = Material.getMaterial(materialName);
-            if (material != null && material.isBlock()) {
-                allowedBlocks.add(settingsManager.toBlockKey(material, (byte) 0));
-            }
-        }
-        settingsManager.setGloballyAllowedPlaceBlocks(allowedBlocks);
-
-        List<?> serializedLoadout = configuration.getList("settings.baseLoadout");
-        java.util.List<org.bukkit.inventory.ItemStack> loadoutItems = new java.util.ArrayList<org.bukkit.inventory.ItemStack>();
-        if (serializedLoadout != null) {
-            for (Object raw : serializedLoadout) {
-                if (raw instanceof org.bukkit.inventory.ItemStack) {
-                    loadoutItems.add(((org.bukkit.inventory.ItemStack) raw).clone());
-                }
-            }
-        }
-        settingsManager.setBaseLoadoutItems(loadoutItems);
-
-        teamManager.clearTeams();
-        int nextTeamNumber = configuration.getInt("teams.nextId", 1);
-
-        ConfigurationSection teamsSection = configuration.getConfigurationSection("teams.entries");
-        if (teamsSection != null) {
-            for (String key : teamsSection.getKeys(false)) {
-                ConfigurationSection teamSection = teamsSection.getConfigurationSection(key);
-                if (teamSection == null) {
+            Set<String> allowedBlocks = new java.util.HashSet<String>();
+            for (String materialName : configuration.getStringList("settings.allowedPlaceBlocks")) {
+                if (materialName.contains(":")) {
+                    org.bukkit.inventory.ItemStack stack = settingsManager.fromBlockKey(materialName);
+                    if (stack != null) {
+                        allowedBlocks.add(materialName);
+                    }
                     continue;
                 }
-
-                int id = Integer.parseInt(key);
-                TeamData team = new TeamData(id, teamSection.getString("name", "Team" + id));
-                team.color = org.bukkit.DyeColor.valueOf(teamSection.getString("color", "WHITE"));
-                team.baseRadius = teamSection.getInt("base.radius", 0);
-
-                String worldName = teamSection.getString("base.world", null);
-                if (worldName != null) {
-                    World world = Bukkit.getWorld(worldName);
-                    if (world != null) {
-                        double x = teamSection.getDouble("base.x", 0.0D);
-                        double y = teamSection.getDouble("base.y", 0.0D);
-                        double z = teamSection.getDouble("base.z", 0.0D);
-                        team.baseCenter = new Location(world, x, y, z);
-                    }
-                }
-
-                for (String memberString : teamSection.getStringList("members")) {
-                    try {
-                        team.members.add(UUID.fromString(memberString));
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-
-                teamManager.getTeams().put(id, team);
-            }
-        }
-
-        teamManager.setNextTeamNumber(nextTeamNumber);
-
-        if (gameStateManager != null) {
-            gameStateManager.setPersistedPlayedMillis(Math.max(0L, configuration.getLong("game.elapsedMillis", 0L)));
-            restoreGameState();
-        }
-
-        if (gameplayCapListener != null) {
-            Map<UUID, Integer> loadedDeaths = new java.util.HashMap<UUID, Integer>();
-            ConfigurationSection deathsSection = configuration.getConfigurationSection("deaths.used");
-            if (deathsSection != null) {
-                for (String key : deathsSection.getKeys(false)) {
-                    try {
-                        UUID playerId = UUID.fromString(key);
-                        int usedDeaths = Math.max(0, deathsSection.getInt(key, 0));
-                        loadedDeaths.put(playerId, Integer.valueOf(usedDeaths));
-                    } catch (IllegalArgumentException ignored) {
-                    }
+                Material material = Material.getMaterial(materialName);
+                if (material != null && material.isBlock()) {
+                    allowedBlocks.add(settingsManager.toBlockKey(material, (byte) 0));
                 }
             }
-            gameplayCapListener.setDeathCounts(loadedDeaths);
-        }
+            settingsManager.setGloballyAllowedPlaceBlocks(allowedBlocks);
 
-        if (playerStatsManager != null) {
-            Map<UUID, PlayerStatsManager.PlayerStats> loadedStats = new java.util.HashMap<UUID, PlayerStatsManager.PlayerStats>();
-            ConfigurationSection statsSection = configuration.getConfigurationSection("playerStats.global");
-            if (statsSection == null) {
-                statsSection = configuration.getConfigurationSection("playerStats");
-            }
-            if (statsSection != null) {
-                for (String key : statsSection.getKeys(false)) {
-                    try {
-                        UUID playerId = UUID.fromString(key);
-                        ConfigurationSection playerSection = statsSection.getConfigurationSection(key);
-                        if (playerSection == null) {
-                            continue;
-                        }
-
-                        PlayerStatsManager.PlayerStats stats = new PlayerStatsManager.PlayerStats();
-                        stats.setKills(playerSection.getInt("kills", 0));
-                        stats.setDeaths(playerSection.getInt("deaths", 0));
-                        stats.setOresMined(playerSection.getInt("oresMined", 0));
-                        stats.setAnimalsKilled(playerSection.getInt("animalsKilled", 0));
-                        stats.setBasesCaptured(playerSection.getInt("basesCaptured", 0));
-                        stats.setGamesWon(playerSection.getInt("gamesWon", 0));
-                        loadedStats.put(playerId, stats);
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-            }
-            playerStatsManager.setAllGlobal(loadedStats);
-            playerStatsManager.resetAll();
-        }
-
-        if (kothManager != null) {
-            kothManager.setEnabled(configuration.getBoolean("koth.enabled", false));
-            kothManager.setRewardCount(configuration.getInt("koth.rewardCount", 1));
-            kothManager.setStartDay(configuration.getInt("koth.startDay", 1));
-            kothManager.setEndDay(configuration.getInt("koth.endDay", 10));
-            kothManager.setZoneRadius(configuration.getInt("koth.zoneRadius", 0));
-
-            String zoneWorldName = configuration.getString("koth.zoneWorld", null);
-            if (zoneWorldName != null) {
-                World world = Bukkit.getWorld(zoneWorldName);
-                if (world != null) {
-                    double x = configuration.getDouble("koth.zoneX", 0.0D);
-                    double y = configuration.getDouble("koth.zoneY", 0.0D);
-                    double z = configuration.getDouble("koth.zoneZ", 0.0D);
-                    kothManager.setZoneCenter(new Location(world, x, y, z));
-                }
-            }
-
-            List<?> serializedRewards = configuration.getList("koth.rewards");
-            java.util.List<org.bukkit.inventory.ItemStack> rewardItems = new java.util.ArrayList<org.bukkit.inventory.ItemStack>();
-            if (serializedRewards != null) {
-                for (Object raw : serializedRewards) {
+            List<?> serializedLoadout = configuration.getList("settings.baseLoadout");
+            java.util.List<org.bukkit.inventory.ItemStack> loadoutItems = new java.util.ArrayList<org.bukkit.inventory.ItemStack>();
+            if (serializedLoadout != null) {
+                for (Object raw : serializedLoadout) {
                     if (raw instanceof org.bukkit.inventory.ItemStack) {
-                        rewardItems.add(((org.bukkit.inventory.ItemStack) raw).clone());
+                        loadoutItems.add(((org.bukkit.inventory.ItemStack) raw).clone());
                     }
                 }
             }
-            kothManager.setRewardItems(rewardItems);
-        }
+            settingsManager.setBaseLoadoutItems(loadoutItems);
 
-        applyGameStartLocationToWorld();
-        applyStoredWorldDifficulties();
+            teamManager.clearTeams();
+            int nextTeamNumber = configuration.getInt("teams.nextId", 1);
+
+            ConfigurationSection teamsSection = configuration.getConfigurationSection("teams.entries");
+            if (teamsSection != null) {
+                for (String key : teamsSection.getKeys(false)) {
+                    ConfigurationSection teamSection = teamsSection.getConfigurationSection(key);
+                    if (teamSection == null) {
+                        continue;
+                    }
+
+                    int id = Integer.parseInt(key);
+                    TeamData team = new TeamData(id, teamSection.getString("name", "Team" + id));
+                    team.color = org.bukkit.DyeColor.valueOf(teamSection.getString("color", "WHITE"));
+                    team.baseRadius = teamSection.getInt("base.radius", 0);
+
+                    String worldName = teamSection.getString("base.world", null);
+                    if (worldName != null) {
+                        World world = Bukkit.getWorld(worldName);
+                        if (world != null) {
+                            double x = teamSection.getDouble("base.x", 0.0D);
+                            double y = teamSection.getDouble("base.y", 0.0D);
+                            double z = teamSection.getDouble("base.z", 0.0D);
+                            team.baseCenter = new Location(world, x, y, z);
+                        }
+                    }
+
+                    for (String memberString : teamSection.getStringList("members")) {
+                        try {
+                            team.members.add(UUID.fromString(memberString));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+
+                    teamManager.getTeams().put(id, team);
+                }
+            }
+
+            teamManager.setNextTeamNumber(nextTeamNumber);
+
+            if (gameStateManager != null) {
+                gameStateManager.setPersistedPlayedMillis(Math.max(0L, configuration.getLong("game.elapsedMillis", 0L)));
+                restoreGameState();
+            }
+
+            if (gameplayCapListener != null) {
+                Map<UUID, Integer> loadedDeaths = new java.util.HashMap<UUID, Integer>();
+                ConfigurationSection deathsSection = configuration.getConfigurationSection("deaths.used");
+                if (deathsSection != null) {
+                    for (String key : deathsSection.getKeys(false)) {
+                        try {
+                            UUID playerId = UUID.fromString(key);
+                            int usedDeaths = Math.max(0, deathsSection.getInt(key, 0));
+                            loadedDeaths.put(playerId, Integer.valueOf(usedDeaths));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                gameplayCapListener.setDeathCounts(loadedDeaths);
+            }
+
+            if (playerStatsManager != null) {
+                Map<UUID, PlayerStatsManager.PlayerStats> loadedStats = new java.util.HashMap<UUID, PlayerStatsManager.PlayerStats>();
+                ConfigurationSection statsSection = configuration.getConfigurationSection("playerStats.global");
+                if (statsSection == null) {
+                    statsSection = configuration.getConfigurationSection("playerStats");
+                }
+                if (statsSection != null) {
+                    for (String key : statsSection.getKeys(false)) {
+                        try {
+                            UUID playerId = UUID.fromString(key);
+                            ConfigurationSection playerSection = statsSection.getConfigurationSection(key);
+                            if (playerSection == null) {
+                                continue;
+                            }
+                            PlayerStatsManager.PlayerStats stats = new PlayerStatsManager.PlayerStats();
+                            stats.setKills(playerSection.getInt("kills", 0));
+                            stats.setDeaths(playerSection.getInt("deaths", 0));
+                            stats.setOresMined(playerSection.getInt("oresMined", 0));
+                            stats.setAnimalsKilled(playerSection.getInt("animalsKilled", 0));
+                            stats.setBasesCaptured(playerSection.getInt("basesCaptured", 0));
+                            stats.setGamesWon(playerSection.getInt("gamesWon", 0));
+                            loadedStats.put(playerId, stats);
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                playerStatsManager.setAllGlobal(loadedStats);
+                playerStatsManager.resetAll();
+            }
+
+            if (kothManager != null) {
+                kothManager.setEnabled(configuration.getBoolean("koth.enabled", false));
+                kothManager.setRewardCount(configuration.getInt("koth.rewardCount", 1));
+                kothManager.setStartDay(configuration.getInt("koth.startDay", 1));
+                kothManager.setEndDay(configuration.getInt("koth.endDay", 10));
+                kothManager.setZoneRadius(configuration.getInt("koth.zoneRadius", 0));
+
+                String zoneWorldName = configuration.getString("koth.zoneWorld", null);
+                if (zoneWorldName != null) {
+                    World world = Bukkit.getWorld(zoneWorldName);
+                    if (world != null) {
+                        double x = configuration.getDouble("koth.zoneX", 0.0D);
+                        double y = configuration.getDouble("koth.zoneY", 0.0D);
+                        double z = configuration.getDouble("koth.zoneZ", 0.0D);
+                        kothManager.setZoneCenter(new Location(world, x, y, z));
+                    }
+                }
+
+                List<?> serializedRewards = configuration.getList("koth.rewards");
+                java.util.List<org.bukkit.inventory.ItemStack> rewardItems = new java.util.ArrayList<org.bukkit.inventory.ItemStack>();
+                if (serializedRewards != null) {
+                    for (Object raw : serializedRewards) {
+                        if (raw instanceof org.bukkit.inventory.ItemStack) {
+                            rewardItems.add(((org.bukkit.inventory.ItemStack) raw).clone());
+                        }
+                    }
+                }
+                kothManager.setRewardItems(rewardItems);
+            }
+
+            applyGameStartLocationToWorld();
+            applyStoredWorldDifficulties();
         } finally {
             loading = false;
         }
