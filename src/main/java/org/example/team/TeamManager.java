@@ -852,24 +852,55 @@ public class TeamManager implements Listener {
     }
 
     public void updatePlayerDisplayNames() {
+        org.bukkit.scoreboard.Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+
         for (Player player : Bukkit.getOnlinePlayers()) {
             String baseName = getPlayerBaseName(player);
             TeamData team = getTeamByPlayer(player.getUniqueId());
+
+            String coloredName;
             if (team != null && settingsManager.isColoredNamesEnabled()) {
                 ChatColor color = getTeamChatColor(team.color);
-                String coloredName = color + baseName;
-                player.setDisplayName(coloredName);
-                player.setPlayerListName(coloredName);
-                player.setCustomName(coloredName);
-                player.setCustomNameVisible(true);
-                applyNmsCustomName(player, coloredName);
+                coloredName = color + baseName;
             } else {
-                player.setDisplayName(baseName);
-                player.setPlayerListName(baseName);
-                player.setCustomName(baseName);
-                player.setCustomNameVisible(true);
-                applyNmsCustomName(player, baseName);
+                coloredName = baseName;
             }
+
+            player.setDisplayName(coloredName);
+            player.setPlayerListName(coloredName.length() > 16 ? coloredName.substring(0, 16) : coloredName);
+
+            applyNametagViaScoreboard(player, board, coloredName);
+        }
+    }
+
+    private void applyNametagViaScoreboard(Player player, org.bukkit.scoreboard.Scoreboard board, String displayName) {
+        String teamName = "fk_" + player.getName();
+        if (teamName.length() > 16) {
+            teamName = teamName.substring(0, 16);
+        }
+
+        org.bukkit.scoreboard.Team sbTeam = board.getTeam(teamName);
+        if (sbTeam == null) {
+            sbTeam = board.registerNewTeam(teamName);
+        }
+
+        String prefix = "";
+        String suffix = "";
+        if (displayName.length() <= 16) {
+            prefix = displayName;
+        } else if (displayName.length() <= 32) {
+            prefix = displayName.substring(0, 16);
+            suffix = displayName.substring(16);
+        } else {
+            prefix = displayName.substring(0, 16);
+            suffix = displayName.substring(16, 32);
+        }
+
+        sbTeam.setPrefix(prefix);
+        sbTeam.setSuffix(suffix);
+
+        if (!sbTeam.hasEntry(player.getName())) {
+            sbTeam.addEntry(player.getName());
         }
     }
 
@@ -1659,6 +1690,11 @@ public class TeamManager implements Listener {
         }
 
         if (block == null) {
+            return true;
+        }
+
+        String blockName = block.getType().name();
+        if (blockName.equals("BED") || blockName.equals("BED_BLOCK") || blockName.endsWith("_BED")) {
             return true;
         }
 

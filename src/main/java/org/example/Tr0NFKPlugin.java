@@ -33,6 +33,8 @@ import org.example.scoreboard.TeamSidebarManager;
 import org.example.scoreboard.CapSidebarManager;
 import org.example.team.TeamListener;
 import org.example.team.TeamManager;
+import org.example.command.InvViewCommand;
+import org.example.listener.BedSpawnListener;
 
 public class Tr0NFKPlugin extends JavaPlugin {
 
@@ -49,6 +51,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
     private GameplayCapListener gameplayCapListener;
     private PlayerStatsManager playerStatsManager;
     private MapVoteManager mapVoteManager;
+    private InvViewCommand invViewCommand;
 
 
     @Override
@@ -71,6 +74,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
         capSidebarManager = new CapSidebarManager(this, settingsManager, teamManager, teamSidebarManager, gameStateManager);
         gameStateManager.setCapSidebarManager(capSidebarManager);
         gameplayCapListener = new GameplayCapListener(this, teamManager, settingsManager, gameStateManager);
+        gameStateManager.setGameplayCapListener(gameplayCapListener);
 
         teamManager.setGameStateManager(gameStateManager);
         dataStore = new PluginDataStore(this, teamManager, settingsManager, gameStateManager, gameplayCapListener, playerStatsManager, kothManager);
@@ -80,6 +84,8 @@ public class Tr0NFKPlugin extends JavaPlugin {
         settingsCommand.setPluginDataStore(dataStore);
         gameStateManager.setDataStore(dataStore);
         gameStateManager.enforceAdventureModeWhenStopped();
+        invViewCommand = new InvViewCommand(this);
+        getServer().getPluginManager().registerEvents(invViewCommand, this);
 
         teamManager.setSaveAction(new Runnable() {
             @Override
@@ -121,7 +127,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PauseProtectionListener(gameStateManager), this);
         getServer().getPluginManager().registerEvents(new WorldDifficultyListener(dataStore), this);
         getServer().getPluginManager().registerEvents(new FlyGuiListener(), this);
-        getServer().getPluginManager().registerEvents(new org.example.listener.BedSpawnListener(), this);
+        getServer().getPluginManager().registerEvents(new BedSpawnListener(dataStore), this);
         getServer().getPluginManager().registerEvents(kothCommand, this);
         getServer().getPluginManager().registerEvents(mapVoteManager, this);
 
@@ -134,7 +140,7 @@ public class Tr0NFKPlugin extends JavaPlugin {
 
         PluginCommand fkCommand = getCommand("fk");
         if (fkCommand != null) {
-            FkCommand fkExecutor = new FkCommand(teamManager, settingsCommand, gameStateManager, kothCommand, kothManager, mapVoteManager, capSidebarManager);
+            FkCommand fkExecutor = new FkCommand(teamManager, settingsCommand, gameStateManager, kothCommand, kothManager, mapVoteManager, capSidebarManager, invViewCommand);
             fkCommand.setExecutor(fkExecutor);
             fkCommand.setTabCompleter(fkExecutor);
         }
@@ -188,7 +194,6 @@ public class Tr0NFKPlugin extends JavaPlugin {
         if (flyCommand != null) {
             flyCommand.setExecutor(new FlyCommand());
         }
-        getServer().getPluginManager().registerEvents(new org.example.listener.BedSpawnListener(), this);
 
         Bukkit.getConsoleSender().sendMessage(PREFIX + ChatColor.GREEN + "Plugin enabled!");
 
@@ -207,6 +212,9 @@ public class Tr0NFKPlugin extends JavaPlugin {
         }
         if (dataStore != null) {
             dataStore.save();
+        }
+        if (invViewCommand != null) {
+            invViewCommand.cleanup();
         }
     }
 }

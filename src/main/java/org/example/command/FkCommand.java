@@ -22,6 +22,7 @@ import org.example.koth.KothManager;
 import org.example.map.MapVoteManager;
 import org.example.scoreboard.CapSidebarManager;
 import org.example.team.TeamManager;
+import org.example.command.InvViewCommand;
 
 public class FkCommand implements CommandExecutor, TabCompleter {
 
@@ -41,10 +42,11 @@ public class FkCommand implements CommandExecutor, TabCompleter {
     private final KothManager kothManager;
     private final MapVoteManager mapVoteManager;
     private final CapSidebarManager capSidebarManager;
+    private final InvViewCommand invViewCommand;
 
     public FkCommand(TeamManager teamManager, FkSettingsCommand settingsCommand, GameStateManager gameStateManager,
                      KothCommand kothCommand, KothManager kothManager, MapVoteManager mapVoteManager,
-                     CapSidebarManager capSidebarManager) {
+                     CapSidebarManager capSidebarManager, InvViewCommand invViewCommand) {
         this.teamManager = teamManager;
         this.settingsCommand = settingsCommand;
         this.gameStateManager = gameStateManager;
@@ -52,6 +54,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         this.kothManager = kothManager;
         this.mapVoteManager = mapVoteManager;
         this.capSidebarManager = capSidebarManager;
+        this.invViewCommand = invViewCommand;
     }
 
     @Override
@@ -94,6 +97,8 @@ public class FkCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(ChatColor.AQUA + "/fk map load <map>" + ChatColor.GRAY + " - load a world into memory");
                 player.sendMessage(ChatColor.AQUA + "/fk map load list" + ChatColor.GRAY + " - list all currently loaded worlds");
                 player.sendMessage(ChatColor.AQUA + "/fk map unload <map>" + ChatColor.GRAY + " - unload a world from memory");
+                player.sendMessage(ChatColor.AQUA + "/fk map delete <map>" + ChatColor.GRAY + " - delete a map permanently");
+                player.sendMessage(ChatColor.AQUA + "/fk inv <player>" + ChatColor.GRAY + " - view and manage a player inventory live");
                 player.sendMessage(ChatColor.AQUA + "/fk creeper <0-100>" + ChatColor.GRAY + " - set charged creeper spawn chance");
                 player.sendMessage(ChatColor.AQUA + "/fk item rename <name>" + ChatColor.GRAY + " - rename held item");
                 player.sendMessage(ChatColor.AQUA + "/fk item enchant <enchant> <level>" + ChatColor.GRAY + " - enchant held item");
@@ -315,6 +320,10 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (command.getName().equalsIgnoreCase("fk") && args.length == 2 && args[0].equalsIgnoreCase("inv")) {
+            return invViewCommand.handle(player, args);
+        }
+
         if (!player.isOp()) {
             player.sendMessage(PREFIX + ChatColor.RED + "You do not have the required permissions.");
             return true;
@@ -441,7 +450,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        player.sendMessage(PREFIX + ChatColor.YELLOW + "Usage: /fk, /fk help, /fk show, /fk stats, /fk team, /fk settings, /fk koth, /fk koth start, /fk koth stop, /fk setday <number>, /fk start, /fk pause, /fk resume, /fk stop, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>, /fk map clone <map> [newname], /fk map load <map>, /fk map load list, /fk map unload <map>");
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Usage: /fk, /fk help, /fk show, /fk stats, /fk team, /fk settings, /fk koth, /fk koth start, /fk koth stop, /fk setday <number>, /fk start, /fk pause, /fk resume, /fk stop, /fk map, /fk map list, /fk map switch <map> [player|all], /fk map timer <seconds>, /fk map clone <map> [newname], /fk map load <map>, /fk map load list, /fk map unload <map>, /fk map delete <map>, /fk inv <player>");
         return true;
     }
 
@@ -469,6 +478,18 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             if ("scoreboard".startsWith(input)) completions.add("scoreboard");
             if ("creeper".startsWith(input)) completions.add("creeper");
             if ("help".startsWith(input)) completions.add("help");
+            if ("inv".startsWith(input)) completions.add("inv");
+            return completions;
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("inv")) {
+            List<String> completions = new ArrayList<String>();
+            String input = args[1].toLowerCase();
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getName().toLowerCase().startsWith(input)) {
+                    completions.add(online.getName());
+                }
+            }
             return completions;
         }
 
@@ -626,7 +647,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         return Collections.emptyList();
     }
 
-
     private void loadMap(Player player, String mapName) {
         if (Bukkit.getWorld(mapName) != null) {
             player.sendMessage(PREFIX + ChatColor.RED + "World \"" + mapName + "\" is already loaded.");
@@ -652,7 +672,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         }
 
         player.sendMessage(PREFIX + ChatColor.YELLOW + "Loading world \"" + mapName + "\"...");
-
         org.bukkit.World loaded = Bukkit.createWorld(new WorldCreator(mapName));
 
         if (loaded != null) {
@@ -703,7 +722,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-
     private void cloneMap(Player player, String sourceMap, String destName) {
         org.bukkit.plugin.java.JavaPlugin plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
         java.io.File pluginFolder = plugin.getDataFolder();
@@ -715,7 +733,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         }
 
         org.bukkit.configuration.file.YamlConfiguration mapConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(mapYml);
-
         java.util.List<String> mapList = mapConfig.getStringList("maps");
 
         boolean sourceFound = false;
@@ -751,41 +768,81 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        org.bukkit.World loadedSource = org.bukkit.Bukkit.getWorld(sourceMap);
-        if (loadedSource != null) {
-            player.sendMessage(PREFIX + ChatColor.YELLOW + "Saving and unloading source world...");
-            org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
-            org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
-            for (org.bukkit.entity.Player online : new java.util.ArrayList<org.bukkit.entity.Player>(loadedSource.getPlayers())) {
-                online.teleport(fallbackLoc);
-                online.sendMessage(PREFIX + ChatColor.YELLOW + "Temporarily teleported for map cloning.");
+        for (String suffix : new String[]{"", "_nether", "_the_end"}) {
+            org.bukkit.World loadedWorld = org.bukkit.Bukkit.getWorld(sourceMap + suffix);
+            if (loadedWorld != null) {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Saving and unloading \"" + sourceMap + suffix + "\"...");
+                org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
+                org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
+                for (org.bukkit.entity.Player online : new java.util.ArrayList<org.bukkit.entity.Player>(loadedWorld.getPlayers())) {
+                    online.teleport(fallbackLoc);
+                    online.sendMessage(PREFIX + ChatColor.YELLOW + "Temporarily teleported for map cloning.");
+                }
+                loadedWorld.save();
+                org.bukkit.Bukkit.unloadWorld(loadedWorld, true);
             }
-            loadedSource.save();
-            org.bukkit.Bukkit.unloadWorld(loadedSource, true);
         }
 
         java.io.File worldContainer = org.bukkit.Bukkit.getWorldContainer();
-        java.io.File sourceWorld    = new java.io.File(worldContainer, sourceMap);
-        java.io.File destWorld      = new java.io.File(worldContainer, finalDest);
 
+        java.io.File sourceWorld = new java.io.File(worldContainer, sourceMap);
+        java.io.File destWorld   = new java.io.File(worldContainer, finalDest);
+        boolean overworldCopied = false;
         if (sourceWorld.exists() && sourceWorld.isDirectory()) {
             if (destWorld.exists()) {
-                player.sendMessage(PREFIX + ChatColor.YELLOW
-                        + "Folder \"" + finalDest + "\" already exists at root, copy skipped.");
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Folder \"" + finalDest + "\" already exists, skipped.");
             } else {
                 player.sendMessage(PREFIX + ChatColor.YELLOW + "Copying world folder...");
                 try {
                     copyDirectory(sourceWorld, destWorld);
                     java.io.File sessionLock = new java.io.File(destWorld, "session.lock");
                     if (sessionLock.exists()) { sessionLock.delete(); }
+                    overworldCopied = true;
                 } catch (java.io.IOException e) {
                     player.sendMessage(PREFIX + ChatColor.RED + "Error copying world folder: " + e.getMessage());
                     return;
                 }
             }
         } else {
-            player.sendMessage(PREFIX + ChatColor.YELLOW
-                    + "No folder \"" + sourceMap + "\" found at server root, skipped.");
+            player.sendMessage(PREFIX + ChatColor.YELLOW + "No folder \"" + sourceMap + "\" found at server root, skipped.");
+        }
+
+        java.io.File sourceNether = new java.io.File(worldContainer, sourceMap + "_nether");
+        java.io.File destNether   = new java.io.File(worldContainer, finalDest + "_nether");
+        boolean netherCopied = false;
+        if (sourceNether.exists() && sourceNether.isDirectory()) {
+            if (destNether.exists()) {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Nether folder already exists, skipped.");
+            } else {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Copying nether folder...");
+                try {
+                    copyDirectory(sourceNether, destNether);
+                    java.io.File sessionLock = new java.io.File(destNether, "session.lock");
+                    if (sessionLock.exists()) { sessionLock.delete(); }
+                    netherCopied = true;
+                } catch (java.io.IOException e) {
+                    player.sendMessage(PREFIX + ChatColor.RED + "Error copying nether folder: " + e.getMessage());
+                }
+            }
+        }
+
+        java.io.File sourceEnd = new java.io.File(worldContainer, sourceMap + "_the_end");
+        java.io.File destEnd   = new java.io.File(worldContainer, finalDest + "_the_end");
+        boolean endCopied = false;
+        if (sourceEnd.exists() && sourceEnd.isDirectory()) {
+            if (destEnd.exists()) {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "End folder already exists, skipped.");
+            } else {
+                player.sendMessage(PREFIX + ChatColor.YELLOW + "Copying end folder...");
+                try {
+                    copyDirectory(sourceEnd, destEnd);
+                    java.io.File sessionLock = new java.io.File(destEnd, "session.lock");
+                    if (sessionLock.exists()) { sessionLock.delete(); }
+                    endCopied = true;
+                } catch (java.io.IOException e) {
+                    player.sendMessage(PREFIX + ChatColor.RED + "Error copying end folder: " + e.getMessage());
+                }
+            }
         }
 
         java.io.File profilesDir   = new java.io.File(pluginFolder, "map-profiles");
@@ -796,31 +853,39 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         if (sourceProfile.exists()) {
             try {
                 profilesDir.mkdirs();
-                org.bukkit.configuration.file.YamlConfiguration profileConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(sourceProfile);
-
-                replaceWorldNameInConfig(profileConfig, sourceMap, finalDest);
-
-                profileConfig.save(destProfile);
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(new java.io.FileInputStream(sourceProfile), "UTF-8"));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                reader.close();
+                String text = content.toString();
+                text = text.replaceAll(
+                        "(?m)(:\\s+)" + java.util.regex.Pattern.quote(sourceMap) + "(?=\\s*$)",
+                        "$1" + finalDest
+                );
+                java.io.BufferedWriter writer = new java.io.BufferedWriter(
+                        new java.io.OutputStreamWriter(new java.io.FileOutputStream(destProfile), "UTF-8"));
+                writer.write(text);
+                writer.close();
                 profileCopied = true;
             } catch (java.io.IOException e) {
                 player.sendMessage(PREFIX + ChatColor.RED + "Error while copying profile: " + e.getMessage());
                 return;
             }
         } else {
-            player.sendMessage(PREFIX + ChatColor.YELLOW
-                    + "No profile found for \"" + sourceMap + "\", map-profiles skipped.");
+            player.sendMessage(PREFIX + ChatColor.YELLOW + "No profile found for \"" + sourceMap + "\", map-profiles skipped.");
         }
 
         player.sendMessage(PREFIX + ChatColor.GREEN + "Cloning completed!");
-        player.sendMessage(PREFIX + ChatColor.YELLOW + sourceMap
-                + ChatColor.GREEN + " -> " + ChatColor.YELLOW + finalDest + ChatColor.GREEN + " :");
+        player.sendMessage(PREFIX + ChatColor.YELLOW + sourceMap + ChatColor.GREEN + " -> " + ChatColor.YELLOW + finalDest + ChatColor.GREEN + " :");
         player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml updated");
-        if (profileCopied) {
-            player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + finalDest + ".yml copied and adapted");
-        }
-        if (destWorld.exists()) {
-            player.sendMessage(ChatColor.GRAY + "  ✔ world folder " + finalDest + "/ copied");
-        }
+        if (profileCopied)   player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + finalDest + ".yml copied and adapted");
+        if (overworldCopied) player.sendMessage(ChatColor.GRAY + "  ✔ world folder " + finalDest + "/ copied");
+        if (netherCopied)    player.sendMessage(ChatColor.GRAY + "  ✔ nether folder " + finalDest + "_nether/ copied");
+        if (endCopied)       player.sendMessage(ChatColor.GRAY + "  ✔ end folder " + finalDest + "_the_end/ copied");
         player.sendMessage(PREFIX + ChatColor.GRAY + "Reload config to apply.");
     }
 
@@ -831,7 +896,6 @@ public class FkCommand implements CommandExecutor, TabCompleter {
     private void replaceInSection(org.bukkit.configuration.ConfigurationSection root, org.bukkit.configuration.ConfigurationSection section, String sourceWorld, String destWorld) {
         for (String key : new java.util.ArrayList<>(section.getKeys(false))) {
             Object value = section.get(key);
-
             if (value instanceof org.bukkit.configuration.ConfigurationSection) {
                 org.bukkit.configuration.ConfigurationSection child = (org.bukkit.configuration.ConfigurationSection) value;
                 if (key.equals(sourceWorld)) {
@@ -850,13 +914,11 @@ public class FkCommand implements CommandExecutor, TabCompleter {
                 } else {
                     replaceInSection(root, child, sourceWorld, destWorld);
                 }
-
             } else if (value instanceof String) {
                 String replaced = replaceWorldInString((String) value, sourceWorld, destWorld);
                 if (!replaced.equals(value)) {
                     section.set(key, replaced);
                 }
-
             } else if (value instanceof java.util.List) {
                 java.util.List<?> list = (java.util.List<?>) value;
                 java.util.List<Object> newList = new java.util.ArrayList<>();
@@ -879,16 +941,12 @@ public class FkCommand implements CommandExecutor, TabCompleter {
 
     private String replaceWorldInString(String value, String sourceWorld, String destWorld) {
         if (value == null) return null;
-        if (value.equalsIgnoreCase(sourceWorld)) {
-            return destWorld;
-        }
+        if (value.equalsIgnoreCase(sourceWorld)) return destWorld;
         return value;
     }
 
-
     private void deleteMap(Player player, String mapName) {
-        org.bukkit.plugin.java.JavaPlugin plugin =
-                org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
+        org.bukkit.plugin.java.JavaPlugin plugin = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(getClass());
         java.io.File pluginFolder = plugin.getDataFolder();
 
         java.io.File mapYml = new java.io.File(pluginFolder, "maps.yml");
@@ -896,8 +954,7 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(PREFIX + ChatColor.RED + "maps.yml not found.");
             return;
         }
-        org.bukkit.configuration.file.YamlConfiguration mapConfig =
-                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(mapYml);
+        org.bukkit.configuration.file.YamlConfiguration mapConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(mapYml);
         java.util.List<String> mapList = mapConfig.getStringList("maps");
         String exactName = null;
         for (String m : mapList) {
@@ -908,24 +965,19 @@ public class FkCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        org.bukkit.World loaded = org.bukkit.Bukkit.getWorld(exactName);
-        if (loaded != null) {
-            org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
-            org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
-            for (org.bukkit.entity.Player online : new java.util.ArrayList<>(loaded.getPlayers())) {
-                online.teleport(fallbackLoc);
-                online.sendMessage(PREFIX + ChatColor.RED + "The map \"" + exactName + "\" is being deleted, you have been teleported.");
-            }
-            loaded.save();
-            org.bukkit.Bukkit.unloadWorld(loaded, false);
-        }
+        final String finalExactName = exactName;
 
-        java.io.File worldContainer = org.bukkit.Bukkit.getWorldContainer();
-        java.io.File worldDir = new java.io.File(worldContainer, exactName);
-        if (worldDir.exists()) {
-            java.io.File sessionLock = new java.io.File(worldDir, "session.lock");
-            if (sessionLock.exists()) {
-                sessionLock.delete();
+        for (String suffix : new String[]{"", "_nether", "_the_end"}) {
+            org.bukkit.World loaded = org.bukkit.Bukkit.getWorld(finalExactName + suffix);
+            if (loaded != null) {
+                org.bukkit.World fallback = org.bukkit.Bukkit.getWorlds().get(0);
+                org.bukkit.Location fallbackLoc = fallback.getSpawnLocation();
+                for (org.bukkit.entity.Player online : new java.util.ArrayList<>(loaded.getPlayers())) {
+                    online.teleport(fallbackLoc);
+                    online.sendMessage(PREFIX + ChatColor.RED + "The map \"" + finalExactName + "\" is being deleted, you have been teleported.");
+                }
+                loaded.save();
+                org.bukkit.Bukkit.unloadWorld(loaded, false);
             }
         }
 
@@ -941,15 +993,41 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         java.io.File profile = new java.io.File(new java.io.File(pluginFolder, "map-profiles"), exactName + ".yml");
         boolean profileDeleted = profile.exists() && profile.delete();
 
-        boolean worldDeleted = deleteDirectoryWithRetry(worldDir, 3, 200);
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Waiting for server to flush chunks before deleting...");
 
-        player.sendMessage(PREFIX + ChatColor.RED + "Map \"" + exactName + "\" deleted:");
-        player.sendMessage(ChatColor.GRAY + "  ✔ maps.yml updated");
-        if (profileDeleted) player.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + exactName + ".yml deleted");
-        if (worldDeleted)   player.sendMessage(ChatColor.GRAY + "  ✔ folder " + exactName + "/ deleted");
-        else player.sendMessage(ChatColor.YELLOW + "  ⚠ folder " + exactName + "/ not found or partially deleted");
+        final java.io.File worldContainer = org.bukkit.Bukkit.getWorldContainer();
+        final String playerName = player.getName();
+        final boolean profileDeletedFinal = profileDeleted;
+
+        org.bukkit.plugin.java.JavaPlugin pluginRef = plugin;
+        pluginRef.getServer().getScheduler().runTaskLater(pluginRef, () -> {
+            Player p = org.bukkit.Bukkit.getPlayerExact(playerName);
+            boolean overworldDeleted = false;
+            boolean netherDeleted    = false;
+            boolean endDeleted       = false;
+
+            for (String suffix : new String[]{"", "_nether", "_the_end"}) {
+                java.io.File dir = new java.io.File(worldContainer, finalExactName + suffix);
+                if (!dir.exists()) continue;
+                java.io.File sessionLock = new java.io.File(dir, "session.lock");
+                if (sessionLock.exists()) sessionLock.delete();
+                boolean deleted = deleteDirectoryWithRetry(dir, 5, 300);
+                if (suffix.isEmpty())              overworldDeleted = deleted;
+                else if (suffix.equals("_nether")) netherDeleted    = deleted;
+                else                               endDeleted       = deleted;
+            }
+
+            if (p != null && p.isOnline()) {
+                p.sendMessage(PREFIX + ChatColor.RED + "Map \"" + finalExactName + "\" deleted:");
+                p.sendMessage(ChatColor.GRAY + "  ✔ maps.yml updated");
+                if (profileDeletedFinal) p.sendMessage(ChatColor.GRAY + "  ✔ map-profiles/" + finalExactName + ".yml deleted");
+                if (overworldDeleted)    p.sendMessage(ChatColor.GRAY + "  ✔ folder " + finalExactName + "/ deleted");
+                else                     p.sendMessage(ChatColor.YELLOW + "  ⚠ folder " + finalExactName + "/ not found or partially deleted");
+                if (netherDeleted)       p.sendMessage(ChatColor.GRAY + "  ✔ folder " + finalExactName + "_nether/ deleted");
+                if (endDeleted)          p.sendMessage(ChatColor.GRAY + "  ✔ folder " + finalExactName + "_the_end/ deleted");
+            }
+        }, 60L);
     }
-
 
     private boolean deleteDirectoryWithRetry(java.io.File dir, int maxRetries, long delayMs) {
         if (dir == null || !dir.exists()) return false;
@@ -973,16 +1051,13 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         return dir.delete();
     }
 
-
     private void copyDirectory(java.io.File src, java.io.File dst) throws java.io.IOException {
         if (src.isDirectory()) {
             dst.mkdirs();
             java.io.File[] children = src.listFiles();
             if (children != null) {
                 for (java.io.File child : children) {
-                    if (child.getName().equalsIgnoreCase("uid.dat")) {
-                        continue;
-                    }
+                    if (child.getName().equalsIgnoreCase("uid.dat")) continue;
                     copyDirectory(child, new java.io.File(dst, child.getName()));
                 }
             }
@@ -1002,39 +1077,28 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-
     private String resolveCloneName(String sourceMap, java.util.List<String> existingMaps, java.io.File pluginFolder) {
         String base = sourceMap.replaceAll("\\d+$", "");
-        if (base.isEmpty()) {
-            base = sourceMap;
-        }
+        if (base.isEmpty()) base = sourceMap;
 
         java.io.File profilesDir = new java.io.File(pluginFolder, "map-profiles");
         int index = 1;
         while (true) {
             String candidate = base + index;
-
             boolean takenInList = false;
             for (String m : existingMaps) {
-                if (m.equalsIgnoreCase(candidate)) {
-                    takenInList = true;
-                    break;
-                }
+                if (m.equalsIgnoreCase(candidate)) { takenInList = true; break; }
             }
             java.io.File candidateFile = new java.io.File(profilesDir, candidate + ".yml");
-            if (!takenInList && !candidateFile.exists()) {
-                return candidate;
-            }
+            if (!takenInList && !candidateFile.exists()) return candidate;
             index++;
         }
     }
 
     private Enchantment resolveEnchantment(String input) {
         if (input == null) return null;
-
         String normalized = input.trim().toUpperCase();
         if (normalized.isEmpty()) return null;
-
         if (normalized.equals("SHARPNESS"))                                             normalized = "DAMAGE_ALL";
         else if (normalized.equals("SMITE"))                                            normalized = "DAMAGE_UNDEAD";
         else if (normalized.equals("BANE_OF_ARTHROPODS") || normalized.equals("BANE")) normalized = "DAMAGE_ARTHROPODS";
@@ -1052,42 +1116,25 @@ public class FkCommand implements CommandExecutor, TabCompleter {
         else if (normalized.equals("BLAST_PROTECTION"))                                 normalized = "PROTECTION_EXPLOSIONS";
         else if (normalized.equals("PROJECTILE_PROTECTION"))                            normalized = "PROTECTION_PROJECTILE";
         else if (normalized.equals("AQUA_AFFINITY"))                                    normalized = "WATER_WORKER";
-
         Enchantment enchantment = Enchantment.getByName(normalized);
         if (enchantment != null) return enchantment;
-
         for (Enchantment candidate : Enchantment.values()) {
-            if (candidate != null && candidate.getName() != null
-                    && candidate.getName().equalsIgnoreCase(input)) {
+            if (candidate != null && candidate.getName() != null && candidate.getName().equalsIgnoreCase(input)) {
                 return candidate;
             }
         }
-
         return null;
     }
 
     private List<String> getEnchantAliases() {
         List<String> aliases = new ArrayList<String>();
-        aliases.add("sharpness");
-        aliases.add("smite");
-        aliases.add("bane");
-        aliases.add("efficiency");
-        aliases.add("unbreaking");
-        aliases.add("fortune");
-        aliases.add("looting");
-        aliases.add("protection");
-        aliases.add("fire_protection");
-        aliases.add("blast_protection");
-        aliases.add("projectile_protection");
-        aliases.add("power");
-        aliases.add("punch");
-        aliases.add("flame");
-        aliases.add("infinity");
-        aliases.add("respiration");
-        aliases.add("aqua_affinity");
-        aliases.add("depth_strider");
-        aliases.add("thorns");
-        aliases.add("silk_touch");
+        aliases.add("sharpness"); aliases.add("smite"); aliases.add("bane");
+        aliases.add("efficiency"); aliases.add("unbreaking"); aliases.add("fortune");
+        aliases.add("looting"); aliases.add("protection"); aliases.add("fire_protection");
+        aliases.add("blast_protection"); aliases.add("projectile_protection");
+        aliases.add("power"); aliases.add("punch"); aliases.add("flame");
+        aliases.add("infinity"); aliases.add("respiration"); aliases.add("aqua_affinity");
+        aliases.add("depth_strider"); aliases.add("thorns"); aliases.add("silk_touch");
         return aliases;
     }
 }

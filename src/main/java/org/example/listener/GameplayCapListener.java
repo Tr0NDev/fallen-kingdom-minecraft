@@ -44,7 +44,9 @@ import org.example.team.TeamData;
 import org.example.team.TeamManager;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
 
 public class GameplayCapListener implements Listener {
 
@@ -57,6 +59,10 @@ public class GameplayCapListener implements Listener {
     private final GameStateManager gameStateManager;
     private final Map<UUID, Integer> deathCounts = new ConcurrentHashMap<UUID, Integer>();
     private final Map<UUID, Double> hungerFractionCarry = new ConcurrentHashMap<UUID, Double>();
+    private final Map<String, Location> netherPortalLinks = new ConcurrentHashMap<String, Location>();
+    public Map<String, Location> getNetherPortalLinks() {
+        return netherPortalLinks;
+    }
     private Runnable saveAction = new Runnable() {
         @Override
         public void run() {
@@ -117,26 +123,23 @@ public class GameplayCapListener implements Listener {
         }, 1L);
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onEntityExplode(EntityExplodeEvent event) {
+        event.blockList().removeIf(block ->
+                block.getType() == Material.CHEST || block.getType() == Material.TRAPPED_CHEST);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        event.blockList().removeIf(block ->
+                block.getType() == Material.CHEST || block.getType() == Material.TRAPPED_CHEST);
+    }
+
     private void createNetherPortalAt(Location center) {
-        int searchRadius = 16;
         World world = center.getWorld();
-        int cx = center.getBlockX();
-        int cy = center.getBlockY();
-        int cz = center.getBlockZ();
-
-        for (int x = cx - searchRadius; x <= cx + searchRadius; x++) {
-            for (int y = Math.max(1, cy - searchRadius); y <= Math.min(world.getMaxHeight() - 1, cy + searchRadius); y++) {
-                for (int z = cz - searchRadius; z <= cz + searchRadius; z++) {
-                    if (world.getBlockAt(x, y, z).getType() == Material.PORTAL) {
-                        return;
-                    }
-                }
-            }
-        }
-
-        int px = cx;
-        int pz = cz;
-        int py = cy;
+        int px = center.getBlockX();
+        int py = (int) center.getY();
+        int pz = center.getBlockZ();
 
         for (int x = px - 1; x <= px + 2; x++) {
             world.getBlockAt(x, py - 1, pz).setType(Material.OBSIDIAN);
@@ -178,26 +181,55 @@ public class GameplayCapListener implements Listener {
                     return;
                 }
 
-                if (!settingsManager.isNetherAssaultEnabled()) {
-                    Location dest = event.getTo();
-                    if (dest != null && teamManager.isLocationInsideEnemyBase(player, dest)) {
-                        event.setCancelled(true);
+                event.setCancelled(true);
+                Location from = event.getFrom();
+                String linkKey = fromName + ":" + (from.getBlockX() >> 4) + ":" + (from.getBlockZ() >> 4);
+
+                Location cached = netherPortalLinks.get(linkKey);
+                if (cached != null && cached.getWorld() != null) {
+                    if (!settingsManager.isNetherAssaultEnabled()
+                            && teamManager.isLocationInsideEnemyBase(player, cached)) {
                         player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
                         return;
                     }
+                    player.teleport(cached);
+                    return;
                 }
 
-                event.setCancelled(true);
-                Location from = event.getFrom();
-                Location netherDest = new Location(nether,
-                        from.getX() / 8.0,
-                        Math.max(64, Math.min(120, from.getY())),
-                        from.getZ() / 8.0,
-                        from.getYaw(),
-                        from.getPitch());
+                double destX = from.getX() / 8.0;
+                double destY = Math.max(64, Math.min(120, from.getY()));
+                double destZ = from.getZ() / 8.0;
+                final String finalLinkKey = linkKey;
+                final World finalNether = nether;
+                final Location fromClone = from.clone();
 
-                createNetherPortalAt(netherDest);
-                player.teleport(netherDest);
+                int searchRadius = 128;
+                int centerChunkX = ((int) destX) >> 4;
+                int centerChunkZ = ((int) destZ) >> 4;
+                int chunkRadius = (searchRadius >> 4) + 1;
+                for (int cx = centerChunkX - chunkRadius; cx <= centerChunkX + chunkRadius; cx++) {
+                    for (int cz = centerChunkZ - chunkRadius; cz <= centerChunkZ + chunkRadius; cz++) {
+                        finalNether.loadChunk(cx, cz, false);
+                    }
+                }
+
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    Location linked = findNearestPortal(finalNether, destX, destY, destZ, searchRadius);
+                    Location dest;
+                    if (linked == null) {
+                        dest = new Location(finalNether, destX, destY, destZ, fromClone.getYaw(), fromClone.getPitch());
+                        createNetherPortalAt(dest);
+                    } else {
+                        dest = linked;
+                    }
+                    netherPortalLinks.put(finalLinkKey, dest.clone());
+                    if (!settingsManager.isNetherAssaultEnabled()
+                            && teamManager.isLocationInsideEnemyBase(player, dest)) {
+                        player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
+                        return;
+                    }
+                    player.teleport(dest);
+                }, 5L);
                 return;
             }
 
@@ -212,26 +244,55 @@ public class GameplayCapListener implements Listener {
                     return;
                 }
 
-                if (!settingsManager.isNetherAssaultEnabled()) {
-                    Location dest = event.getTo();
-                    if (dest != null && teamManager.isLocationInsideEnemyBase(player, dest)) {
-                        event.setCancelled(true);
+                event.setCancelled(true);
+                Location from = event.getFrom();
+                String linkKey = fromName + ":" + (from.getBlockX() >> 4) + ":" + (from.getBlockZ() >> 4);
+
+                Location cached = netherPortalLinks.get(linkKey);
+                if (cached != null && cached.getWorld() != null) {
+                    if (!settingsManager.isNetherAssaultEnabled()
+                            && teamManager.isLocationInsideEnemyBase(player, cached)) {
                         player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
                         return;
                     }
+                    player.teleport(cached);
+                    return;
                 }
 
-                event.setCancelled(true);
-                Location from = event.getFrom();
-                Location overDest = new Location(over,
-                        from.getX() * 8.0,
-                        Math.max(64, Math.min(255, from.getY())),
-                        from.getZ() * 8.0,
-                        from.getYaw(),
-                        from.getPitch());
+                double destX = from.getX() * 8.0;
+                double destY = Math.max(64, Math.min(255, from.getY()));
+                double destZ = from.getZ() * 8.0;
+                final String finalLinkKey = linkKey;
+                final World finalOver = over;
+                final Location fromClone = from.clone();
 
-                createNetherPortalAt(overDest);
-                player.teleport(overDest);
+                int searchRadius = 256;
+                int centerChunkX = ((int) destX) >> 4;
+                int centerChunkZ = ((int) destZ) >> 4;
+                int chunkRadius = (searchRadius >> 4) + 1;
+                for (int cx = centerChunkX - chunkRadius; cx <= centerChunkX + chunkRadius; cx++) {
+                    for (int cz = centerChunkZ - chunkRadius; cz <= centerChunkZ + chunkRadius; cz++) {
+                        finalOver.loadChunk(cx, cz, false);
+                    }
+                }
+
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    Location linked = findNearestPortal(finalOver, destX, destY, destZ, searchRadius);
+                    Location dest;
+                    if (linked == null) {
+                        dest = new Location(finalOver, destX, destY, destZ, fromClone.getYaw(), fromClone.getPitch());
+                        createNetherPortalAt(dest);
+                    } else {
+                        dest = linked;
+                    }
+                    netherPortalLinks.put(finalLinkKey, dest.clone());
+                    if (!settingsManager.isNetherAssaultEnabled()
+                            && teamManager.isLocationInsideEnemyBase(player, dest)) {
+                        player.sendMessage(PREFIX + ChatColor.RED + "Nether assault is disabled.");
+                        return;
+                    }
+                    player.teleport(dest);
+                }, 5L);
                 return;
             }
         }
@@ -282,6 +343,35 @@ public class GameplayCapListener implements Listener {
                 player.teleport(over.getSpawnLocation());
             }
         }
+    }
+
+    private Location findNearestPortal(World world, double cx, double cy, double cz, int searchRadius) {
+        int icx = (int) cx;
+        int icz = (int) cz;
+
+        int minY = Math.max(1, (int) cy - 64);
+        int maxY = Math.min(world.getMaxHeight() - 1, (int) cy + 64);
+
+        Location nearest = null;
+        double nearestDist = Double.MAX_VALUE;
+
+        for (int x = icx - searchRadius; x <= icx + searchRadius; x += 2) {
+            for (int z = icz - searchRadius; z <= icz + searchRadius; z += 2) {
+                double horizDist = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+                if (horizDist >= nearestDist) continue;
+                for (int y = minY; y <= maxY; y++) {
+                    if (world.getBlockAt(x, y, z).getType() != Material.PORTAL) {
+                        continue;
+                    }
+                    if (horizDist < nearestDist) {
+                        nearestDist = horizDist;
+                        nearest = new Location(world, x + 0.5, y, z + 0.5);
+                    }
+                }
+            }
+        }
+
+        return nearest;
     }
 
     @EventHandler
@@ -424,6 +514,13 @@ public class GameplayCapListener implements Listener {
             return;
         }
 
+        if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
+            String blockName = event.getClickedBlock().getType().name();
+            if (blockName.equals("BED") || blockName.equals("BED_BLOCK") || blockName.endsWith("_BED")) {
+                return;
+            }
+        }
+
         if (event.getItem() == null || event.getItem().getType() != Material.ENDER_PEARL) {
             return;
         }
@@ -441,6 +538,13 @@ public class GameplayCapListener implements Listener {
         Action action = event.getAction();
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) {
             return;
+        }
+
+        if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
+            String blockName = event.getClickedBlock().getType().name();
+            if (blockName.equals("BED") || blockName.equals("BED_BLOCK") || blockName.endsWith("_BED")) {
+                return;
+            }
         }
 
         if (event.getItem() == null || event.getItem().getType() != Material.POTION) {

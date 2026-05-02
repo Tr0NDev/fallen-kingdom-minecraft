@@ -17,6 +17,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.inventory.ItemStack;
 import org.example.game.GameStateManager;
 import org.example.settings.SettingsManager;
 import org.example.storage.PluginDataStore;
@@ -92,16 +93,49 @@ public class PlayerStateListener implements Listener {
 
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
-        String victim = ChatColor.AQUA + event.getEntity().getName();
+        TeamData victimTeam = teamManager.getTeamByPlayer(event.getEntity().getUniqueId());
+        ChatColor victimColor = victimTeam != null ? teamManager.getTeamChatColor(victimTeam.color) : ChatColor.WHITE;
+        String victim = victimColor + event.getEntity().getName();
         Player killer = event.getEntity().getKiller();
 
         if (killer != null) {
-            event.setDeathMessage(ChatColor.DARK_RED + "[x] " + victim + ChatColor.GRAY + " was eliminated by "
-                    + ChatColor.RED + "(" + killer.getName() + ")" + ChatColor.GRAY + ".");
+            String weaponPart = "";
+            org.bukkit.inventory.ItemStack weapon = killer.getItemInHand();
+            if (weapon != null && weapon.hasItemMeta() && weapon.getItemMeta().hasDisplayName()) {
+                weaponPart = ChatColor.GRAY + " using " + ChatColor.RED + weapon.getItemMeta().getDisplayName();
+            }
+            TeamData killerTeam = teamManager.getTeamByPlayer(killer.getUniqueId());
+            ChatColor killerColor = killerTeam != null ? teamManager.getTeamChatColor(killerTeam.color) : ChatColor.WHITE;
+            event.setDeathMessage(ChatColor.DARK_RED + "[x] " + victim + ChatColor.GRAY + " was slain by "
+                    + killerColor + killer.getName() + weaponPart + ChatColor.GRAY + ".");
             return;
         }
 
-        event.setDeathMessage(ChatColor.DARK_RED + "[x] " + victim + ChatColor.GRAY + " died.");
+        org.bukkit.event.entity.EntityDamageEvent lastDamage = event.getEntity().getLastDamageCause();
+        String cause = "unknown causes";
+        if (lastDamage != null) {
+            switch (lastDamage.getCause()) {
+                case FALL:            cause = "a fatal fall";        break;
+                case LAVA:            cause = "lava";                break;
+                case FIRE:            cause = "fire";                break;
+                case FIRE_TICK:       cause = "burning alive";       break;
+                case DROWNING:        cause = "drowning";            break;
+                case SUFFOCATION:     cause = "suffocation";         break;
+                case VOID:            cause = "the void";            break;
+                case STARVATION:      cause = "starvation";          break;
+                case POISON:          cause = "poison";              break;
+                case WITHER:          cause = "the wither effect";   break;
+                case LIGHTNING:       cause = "a lightning strike";  break;
+                case ENTITY_EXPLOSION:
+                case BLOCK_EXPLOSION: cause = "an explosion";        break;
+                case CONTACT:         cause = "a cactus";            break;
+                case MAGIC:           cause = "magic";               break;
+                case FALLING_BLOCK:   cause = "a falling block";     break;
+                default:              cause = "unknown causes";      break;
+            }
+        }
+
+        event.setDeathMessage(ChatColor.DARK_RED + "[x] " + victim + ChatColor.GRAY + " died from " + cause + ".");
     }
 
     @EventHandler

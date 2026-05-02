@@ -36,9 +36,17 @@ public class PauseProtectionListener implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (gameStateManager.isPaused() && !event.getPlayer().isOp()) {
-            event.setCancelled(true);
+        if (!gameStateManager.isPaused()) return;
+        if (event.getPlayer().isOp()) return;
+
+        if (event.getClickedBlock() != null) {
+            String name = event.getClickedBlock().getType().name();
+            if (name.equals("BED") || name.equals("BED_BLOCK") || name.endsWith("_BED")) {
+                return;
+            }
         }
+
+        event.setCancelled(true);
     }
 
     @EventHandler

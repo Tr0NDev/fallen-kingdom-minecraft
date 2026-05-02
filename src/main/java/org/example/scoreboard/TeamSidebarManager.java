@@ -13,11 +13,7 @@ import org.example.settings.SettingsManager;
 import org.example.team.TeamData;
 import org.example.team.TeamManager;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class TeamSidebarManager {
 
@@ -84,29 +80,10 @@ public class TeamSidebarManager {
         }
     }
 
-    public boolean isSidebarOverride(UUID playerId) {
-        return playerId != null && sidebarOverrides.contains(playerId);
-    }
 
     private void updateAllPlayers() {
         if (mainScoreboard == null) {
             return;
-        }
-
-        if (settingsManager.isHealthBelowNameEnabled()) {
-            if (healthObjective == null) {
-                healthObjective = mainScoreboard.registerNewObjective(HEALTH_OBJECTIVE_NAME, "health");
-                healthObjective.setDisplaySlot(DisplaySlot.BELOW_NAME);
-                healthObjective.setDisplayName(ChatColor.RED + "❤");
-            }
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                healthObjective.getScore(player.getName()).setScore((int) player.getHealth());
-            }
-        } else {
-            if (healthObjective != null) {
-                healthObjective.unregister();
-                healthObjective = null;
-            }
         }
 
         updateTeams();
@@ -115,7 +92,45 @@ public class TeamSidebarManager {
             if (captureScoreboards.containsKey(player.getUniqueId()) || sidebarOverrides.contains(player.getUniqueId())) {
                 continue;
             }
-            player.setScoreboard(mainScoreboard);
+
+            boolean inTeam = teamManager.getTeamByPlayer(player.getUniqueId()) != null;
+
+            ScoreboardManager scoreboardManager = Bukkit.getScoreboardManager();
+            if (scoreboardManager == null) {
+                continue;
+            }
+
+            Scoreboard personal = scoreboardManager.getNewScoreboard();
+
+            for (Map.Entry<Integer, TeamData> entry : teamManager.getTeams().entrySet()) {
+                TeamData teamData = entry.getValue();
+                org.bukkit.scoreboard.Team sbTeam = personal.registerNewTeam(teamData.name);
+                if (settingsManager.isColoredNamesEnabled()) {
+                    sbTeam.setPrefix(teamManager.getTeamChatColor(teamData.color) + "");
+                }
+                sbTeam.setDisplayName(teamData.name);
+                sbTeam.setCanSeeFriendlyInvisibles(true);
+                sbTeam.setAllowFriendlyFire(settingsManager.isFriendlyFireEnabled());
+                for (UUID memberId : teamData.members) {
+                    Player member = Bukkit.getPlayer(memberId);
+                    if (member != null && member.isOnline()) {
+                        sbTeam.addEntry(member.getName());
+                    }
+                }
+            }
+
+            boolean showHealth = !inTeam || settingsManager.isHealthBelowNameEnabled();
+
+            if (showHealth) {
+                Objective personalHealth = personal.registerNewObjective(HEALTH_OBJECTIVE_NAME, "health");
+                personalHealth.setDisplaySlot(DisplaySlot.BELOW_NAME);
+                personalHealth.setDisplayName(ChatColor.RED + "❤");
+                for (Player other : Bukkit.getOnlinePlayers()) {
+                    personalHealth.getScore(other.getName()).setScore((int) other.getHealth());
+                }
+            }
+
+            player.setScoreboard(personal);
         }
 
         teamManager.updatePlayerDisplayNames();
@@ -251,7 +266,7 @@ public class TeamSidebarManager {
         String teamLine = ChatColor.RED + defenderName;
         captureObjective.getScore(teamLine).setScore(1);
 
-        if (settingsManager.isHealthBelowNameEnabled()) {
+        if (settingsManager.isHealthBelowNameEnabled() || (defendingTeam == null)) {
             Objective oldHealthObjective = board.getObjective(HEALTH_OBJECTIVE_NAME);
             if (oldHealthObjective != null) {
                 oldHealthObjective.unregister();

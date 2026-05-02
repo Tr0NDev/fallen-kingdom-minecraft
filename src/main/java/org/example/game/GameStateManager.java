@@ -64,6 +64,12 @@ public class GameStateManager {
         this.capSidebarManager = capSidebarManager;
     }
 
+    private org.example.listener.GameplayCapListener gameplayCapListener;
+
+    public void setGameplayCapListener(org.example.listener.GameplayCapListener gameplayCapListener) {
+        this.gameplayCapListener = gameplayCapListener;
+    }
+
     private static class BaseCaptureProgress {
         private final int attackingTeamId;
         private final long startedAtMillis;
@@ -297,6 +303,7 @@ public class GameStateManager {
                 if (settingsManager.isCompassEnabled()) {
                     String baseIndicator = getBaseIndicator(player);
                     String kothIndicator = getKothIndicator(player);
+                    String netherPortalIndicator = getNetherPortalIndicator(player);
                     String indicator = null;
 
                     if (baseIndicator != null && kothIndicator != null) {
@@ -305,6 +312,14 @@ public class GameStateManager {
                         indicator = ChatColor.RED + kothIndicator;
                     } else if (baseIndicator != null) {
                         indicator = ChatColor.AQUA + baseIndicator;
+                    }
+
+                    if (netherPortalIndicator != null) {
+                        if (indicator != null) {
+                            indicator = indicator + ChatColor.DARK_GRAY + " | " + ChatColor.GOLD + netherPortalIndicator;
+                        } else {
+                            indicator = ChatColor.GOLD + netherPortalIndicator;
+                        }
                     }
 
                     if (indicator != null) {
@@ -320,6 +335,71 @@ public class GameStateManager {
         }, 0L, 20L);
     }
 
+    private String getNetherPortalIndicator(Player player) {
+        if (gameplayCapListener == null) {
+            return null;
+        }
+
+        org.bukkit.World world = player.getWorld();
+        if (world == null || world.getEnvironment() != org.bukkit.World.Environment.NETHER) {
+            return null;
+        }
+
+        String worldName = world.getName();
+        Map<String, Location> links = gameplayCapListener.getNetherPortalLinks();
+        if (links == null || links.isEmpty()) {
+            return null;
+        }
+
+        Location playerLocation = player.getLocation();
+        Location nearestPortal = null;
+        double nearestDist = Double.MAX_VALUE;
+
+        for (Map.Entry<String, Location> entry : links.entrySet()) {
+            Location portalLoc = entry.getValue();
+            if (portalLoc == null || portalLoc.getWorld() == null) {
+                continue;
+            }
+            if (!portalLoc.getWorld().getName().equals(worldName)) {
+                continue;
+            }
+            double dist = playerLocation.distanceSquared(portalLoc);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestPortal = portalLoc;
+            }
+        }
+
+        if (nearestPortal == null) {
+            return null;
+        }
+
+        double deltaX = nearestPortal.getX() - playerLocation.getX();
+        double deltaZ = nearestPortal.getZ() - playerLocation.getZ();
+        double distance = Math.sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
+        int roundedDistance = (int) Math.round(distance);
+
+        if (distance < 2.0D) {
+            return "Portal: ↑ 0m";
+        }
+
+        double yawRad = Math.toRadians(playerLocation.getYaw());
+        double forwardX = -Math.sin(yawRad);
+        double forwardZ = Math.cos(yawRad);
+        double rightX = forwardZ;
+        double rightZ = -forwardX;
+
+        double invLength = 1.0D / distance;
+        double targetNormX = deltaX * invLength;
+        double targetNormZ = deltaZ * invLength;
+
+        double forwardDot = (targetNormX * forwardX) + (targetNormZ * forwardZ);
+        double rightDot = (targetNormX * rightX) + (targetNormZ * rightZ);
+        double relativeAngle = Math.toDegrees(Math.atan2(rightDot, forwardDot));
+
+        String arrow = getRelativeArrow(relativeAngle);
+        return "Portal: " + arrow + " " + roundedDistance + "m";
+    }
     private String getBaseIndicator(Player player) {
         TeamData team = teamManager == null ? null : teamManager.getTeamByPlayer(player.getUniqueId());
         if (team == null || team.baseCenter == null || team.baseCenter.getWorld() == null) {
@@ -773,60 +853,26 @@ public class GameStateManager {
             target = dataStore.getGameStartLocation();
         }
 
-        if (target != null && target.getWorld() != null) {
-            String activeMap = dataStore != null ? dataStore.getActiveMapProfileName() : null;
-            String targetWorldName = target.getWorld().getName();
-
-            if (activeMap != null && !targetWorldName.equalsIgnoreCase(activeMap)) {
-                org.bukkit.World activeWorld = Bukkit.getWorld(activeMap);
-                if (activeWorld != null) {
-                    target = new Location(
-                            activeWorld,
-                            target.getX(),
-                            target.getY(),
-                            target.getZ(),
-                            target.getYaw(),
-                            target.getPitch()
-                    );
-                } else {
-                    target = null;
-                }
-            }
-        }
-
         if (target == null || target.getWorld() == null) {
             if (preferredStartPlayer != null && preferredStartPlayer.getWorld() != null) {
                 target = preferredStartPlayer.getLocation().clone();
+            } else if (!Bukkit.getWorlds().isEmpty()) {
+                target = Bukkit.getWorlds().get(0).getSpawnLocation().clone();
             } else {
-                String activeMap = dataStore != null ? dataStore.getActiveMapProfileName() : null;
-                if (activeMap != null) {
-                    org.bukkit.World activeWorld = Bukkit.getWorld(activeMap);
-                    if (activeWorld != null) {
-                        target = activeWorld.getSpawnLocation().clone();
-                    }
-                }
-                if (target == null && !Bukkit.getWorlds().isEmpty()) {
-                    target = Bukkit.getWorlds().get(0).getSpawnLocation().clone();
-                }
-                if (target == null) {
-                    return;
-                }
+                return;
             }
         }
 
         target = target.clone().add(0.5D, 0.0D, 0.5D);
-
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
             onlinePlayer.teleport(target);
-            onlinePlayer.setBedSpawnLocation(target, true);
+            if (onlinePlayer.getBedSpawnLocation() == null) {
+                onlinePlayer.setBedSpawnLocation(target, true);
+            }
         }
 
         try {
-            target.getWorld().setSpawnLocation(
-                    target.getBlockX(),
-                    target.getBlockY(),
-                    target.getBlockZ()
-            );
+            target.getWorld().setSpawnLocation(target.getBlockX(), target.getBlockY(), target.getBlockZ());
         } catch (Exception ignored) {
         }
     }

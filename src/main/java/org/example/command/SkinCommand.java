@@ -9,6 +9,9 @@ import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,9 +20,10 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-public class SkinCommand implements CommandExecutor {
+public class SkinCommand implements CommandExecutor, TabCompleter {
 
     private static final String PREFIX = ChatColor.translateAlternateColorCodes('&', "&2[&aFK&2] ");
 
@@ -36,15 +40,26 @@ public class SkinCommand implements CommandExecutor {
             return true;
         }
 
-        if (args.length != 1) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Usage: /skin <name>");
+        if (args.length < 1 || args.length > 2) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Usage: /skin <name> [player]");
             return true;
         }
 
         String requestedName = args[0].trim();
         if (requestedName.isEmpty()) {
-            player.sendMessage(PREFIX + ChatColor.RED + "Usage: /skin <name>");
+            player.sendMessage(PREFIX + ChatColor.RED + "Usage: /skin <name> [player]");
             return true;
+        }
+
+        Player target;
+        if (args.length == 2) {
+            target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Player not found: " + args[1]);
+                return true;
+            }
+        } else {
+            target = player;
         }
 
         SkinTexture texture = fetchSkinTexture(requestedName);
@@ -53,14 +68,38 @@ public class SkinCommand implements CommandExecutor {
             return true;
         }
 
-        if (!applySkin(player, texture)) {
+        if (!applySkin(target, texture)) {
             player.sendMessage(PREFIX + ChatColor.RED + "Failed to apply skin (server API limitation).");
             return true;
         }
 
-        refreshAppearance(player);
-        player.sendMessage(PREFIX + ChatColor.GREEN + "Skin changed to " + ChatColor.YELLOW + requestedName + ChatColor.GREEN + ".");
+        refreshAppearance(target);
+
+        if (target == player) {
+            player.sendMessage(PREFIX + ChatColor.GREEN + "Skin changed to " + ChatColor.YELLOW + requestedName + ChatColor.GREEN + ".");
+        } else {
+            player.sendMessage(PREFIX + ChatColor.GREEN + "Skin of " + ChatColor.YELLOW + target.getName()
+                    + ChatColor.GREEN + " changed to " + ChatColor.YELLOW + requestedName + ChatColor.GREEN + ".");
+            target.sendMessage(PREFIX + ChatColor.GREEN + "Your skin was changed to " + ChatColor.YELLOW + requestedName
+                    + ChatColor.GREEN + " by " + ChatColor.YELLOW + player.getName() + ChatColor.GREEN + ".");
+        }
+
         return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 2) {
+            List<String> completions = new ArrayList<String>();
+            String input = args[1].toLowerCase();
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getName().toLowerCase().startsWith(input)) {
+                    completions.add(online.getName());
+                }
+            }
+            return completions;
+        }
+        return Collections.emptyList();
     }
 
     private void refreshAppearance(Player player) {
@@ -117,7 +156,9 @@ public class SkinCommand implements CommandExecutor {
             Method getHandle = craftPlayerClass.getMethod("getHandle");
             Object targetHandle = getHandle.invoke(target);
 
+            @SuppressWarnings("unchecked")
             Object removeAction = Enum.valueOf((Class<Enum>) enumActionClass.asSubclass(Enum.class), "REMOVE_PLAYER");
+            @SuppressWarnings("unchecked")
             Object addAction = Enum.valueOf((Class<Enum>) enumActionClass.asSubclass(Enum.class), "ADD_PLAYER");
 
             Object handleArray = Array.newInstance(entityPlayerClass, 1);
@@ -141,7 +182,7 @@ public class SkinCommand implements CommandExecutor {
             }
 
         } catch (Exception exception) {
-            //caca
+            // caca
         }
     }
 
