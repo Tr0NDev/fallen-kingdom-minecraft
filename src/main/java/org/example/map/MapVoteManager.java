@@ -250,14 +250,6 @@ public class MapVoteManager implements Listener {
         return new ArrayList<String>(getConfiguredMapNamesInternal());
     }
 
-    public boolean switchMapForPlayer(String requestedMapName, Player target, Player executor) {
-        List<Player> targets = new ArrayList<Player>();
-        if (target != null) {
-            targets.add(target);
-        }
-        return switchMapForPlayers(requestedMapName, targets, executor, false);
-    }
-
     public boolean switchMapForPlayers(String requestedMapName, List<Player> targets, Player executor) {
         return switchMapForPlayers(requestedMapName, targets, executor, false);
     }
@@ -278,15 +270,32 @@ public class MapVoteManager implements Listener {
             return false;
         }
 
-        World world = loadOrGetWorld(mapName);
+        if (allowAutoStart && autoStartOnMapSwitch) {
+            String cloneName = resolveCloneName(mapName, getConfiguredMapNamesInternal(), plugin.getDataFolder());
+            Bukkit.broadcastMessage(PREFIX + ChatColor.YELLOW + "Cloning map " + ChatColor.AQUA + mapName
+                    + ChatColor.YELLOW + " -> " + ChatColor.AQUA + cloneName + ChatColor.YELLOW + "...");
+
+            boolean cloneOk = performClone(mapName, cloneName);
+            if (!cloneOk) {
+                Bukkit.broadcastMessage(PREFIX + ChatColor.RED + "Failed to clone map " + mapName + ", aborting.");
+                return false;
+            }
+
+            mapName = cloneName;
+            Bukkit.broadcastMessage(PREFIX + ChatColor.GREEN + "Clone ready: " + ChatColor.AQUA + cloneName);
+        }
+
+        final String finalMapName = mapName;
+
+        World world = loadOrGetWorld(finalMapName);
         if (world == null) {
             if (executor != null) {
-                executor.sendMessage(PREFIX + ChatColor.RED + "Failed to load map: " + mapName + ".");
+                executor.sendMessage(PREFIX + ChatColor.RED + "Failed to load map: " + finalMapName + ".");
             }
             return false;
         }
 
-        if (dataStore != null && !dataStore.switchToMapProfile(mapName)) {
+        if (dataStore != null && !dataStore.switchToMapProfile(finalMapName)) {
             if (executor != null) {
                 executor.sendMessage(PREFIX + ChatColor.RED + "Failed to switch map configuration profile.");
             }
@@ -329,6 +338,7 @@ public class MapVoteManager implements Listener {
                 targetLocation = configuredSwitchPoint.clone().add(0.5D, 0.0D, 0.5D);
             }
         }
+
         for (Player target : onlineTargets) {
             target.teleport(targetLocation);
             target.setBedSpawnLocation(targetLocation, true);
@@ -336,17 +346,17 @@ public class MapVoteManager implements Listener {
 
         if (executor != null) {
             if (onlineTargets.size() == 1) {
-                executor.sendMessage(PREFIX + ChatColor.GREEN + "Switched to map " + ChatColor.YELLOW + mapName
+                executor.sendMessage(PREFIX + ChatColor.GREEN + "Switched to map " + ChatColor.YELLOW + finalMapName
                         + ChatColor.GREEN + " and teleported " + ChatColor.YELLOW + onlineTargets.get(0).getName() + ChatColor.GREEN + ".");
             } else {
-                executor.sendMessage(PREFIX + ChatColor.GREEN + "Switched to map " + ChatColor.YELLOW + mapName
+                executor.sendMessage(PREFIX + ChatColor.GREEN + "Switched to map " + ChatColor.YELLOW + finalMapName
                         + ChatColor.GREEN + " and teleported " + ChatColor.YELLOW + onlineTargets.size() + ChatColor.GREEN + " players.");
             }
         }
 
         for (Player target : onlineTargets) {
             if (executor == null || !executor.getUniqueId().equals(target.getUniqueId())) {
-                target.sendMessage(PREFIX + ChatColor.GREEN + "You were teleported to map " + ChatColor.YELLOW + mapName + ChatColor.GREEN + ".");
+                target.sendMessage(PREFIX + ChatColor.GREEN + "You were teleported to map " + ChatColor.YELLOW + finalMapName + ChatColor.GREEN + ".");
             }
         }
 
@@ -365,6 +375,150 @@ public class MapVoteManager implements Listener {
         }
 
         return true;
+    }
+
+    private boolean performClone(String sourceMap, String destName) {
+        File pluginFolder = plugin.getDataFolder();
+        File mapYml = new File(pluginFolder, "maps.yml");
+        if (!mapYml.exists()) {
+            return false;
+        }
+
+        FileConfiguration mapConfig = YamlConfiguration.loadConfiguration(mapYml);
+        List<String> mapList = mapConfig.getStringList("maps");
+
+        boolean sourceFound = false;
+        for (String m : mapList) {
+            if (m.equalsIgnoreCase(sourceMap)) {
+                sourceFound = true;
+                break;
+            }
+        }
+        if (!sourceFound) {
+            return false;
+        }
+
+        mapList.add(destName);
+        mapConfig.set("maps", mapList);
+        try {
+            mapConfig.save(mapYml);
+        } catch (java.io.IOException e) {
+            Bukkit.getLogger().warning("[FK] Error saving maps.yml during clone: " + e.getMessage());
+            return false;
+        }
+
+        File worldContainer = Bukkit.getWorldContainer();
+
+        for (String suffix : new String[]{"", "_nether", "_the_end"}) {
+            World loadedWorld = Bukkit.getWorld(sourceMap + suffix);
+            if (loadedWorld != null) {
+                World fallback = Bukkit.getWorlds().get(0);
+                Location fallbackLoc = fallback.getSpawnLocation();
+                for (Player online : new ArrayList<Player>(loadedWorld.getPlayers())) {
+                    online.teleport(fallbackLoc);
+                }
+                loadedWorld.save();
+                Bukkit.unloadWorld(loadedWorld, true);
+            }
+        }
+
+        for (String suffix : new String[]{"", "_nether", "_the_end"}) {
+            File srcDir = new File(worldContainer, sourceMap + suffix);
+            File dstDir = new File(worldContainer, destName + suffix);
+            if (!srcDir.exists() || !srcDir.isDirectory()) {
+                continue;
+            }
+            try {
+                copyDirectory(srcDir, dstDir);
+                File sessionLock = new File(dstDir, "session.lock");
+                if (sessionLock.exists()) {
+                    sessionLock.delete();
+                }
+            } catch (java.io.IOException e) {
+                Bukkit.getLogger().warning("[FK] Error copying " + suffix + " folder during clone: " + e.getMessage());
+                return false;
+            }
+        }
+
+        File profilesDir = new File(pluginFolder, "map-profiles");
+        File sourceProfile = new File(profilesDir, sourceMap + ".yml");
+        File destProfile = new File(profilesDir, destName + ".yml");
+
+        if (sourceProfile.exists()) {
+            try {
+                profilesDir.mkdirs();
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(new java.io.FileInputStream(sourceProfile), "UTF-8"));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                reader.close();
+                String text = content.toString();
+                text = text.replaceAll(
+                        "(?m)(:\\s+)" + java.util.regex.Pattern.quote(sourceMap) + "(?=\\s*$)",
+                        "$1" + destName
+                );
+                java.io.BufferedWriter writer = new java.io.BufferedWriter(
+                        new java.io.OutputStreamWriter(new java.io.FileOutputStream(destProfile), "UTF-8"));
+                writer.write(text);
+                writer.close();
+            } catch (java.io.IOException e) {
+                Bukkit.getLogger().warning("[FK] Error copying profile during clone: " + e.getMessage());
+            }
+        }
+
+        return true;
+    }
+
+    private String resolveCloneName(String sourceMap, List<String> existingMaps, File pluginFolder) {
+        String base = sourceMap.replaceAll("\\d+$", "");
+        if (base.isEmpty()) base = sourceMap;
+
+        File profilesDir = new File(pluginFolder, "map-profiles");
+        int index = 1;
+        while (true) {
+            String candidate = base + index;
+            boolean takenInList = false;
+            for (String m : existingMaps) {
+                if (m.equalsIgnoreCase(candidate)) {
+                    takenInList = true;
+                    break;
+                }
+            }
+            File candidateFile = new File(profilesDir, candidate + ".yml");
+            if (!takenInList && !candidateFile.exists()) {
+                return candidate;
+            }
+            index++;
+        }
+    }
+
+    private void copyDirectory(File src, File dst) throws java.io.IOException {
+        if (src.isDirectory()) {
+            dst.mkdirs();
+            File[] children = src.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (child.getName().equalsIgnoreCase("uid.dat")) continue;
+                    copyDirectory(child, new File(dst, child.getName()));
+                }
+            }
+        } else {
+            java.io.InputStream in = new java.io.FileInputStream(src);
+            java.io.OutputStream out = new java.io.FileOutputStream(dst);
+            byte[] buffer = new byte[8192];
+            int length;
+            try {
+                while ((length = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, length);
+                }
+            } finally {
+                in.close();
+                out.close();
+            }
+        }
     }
 
     private boolean isAllOnlinePlayersTargeted(List<Player> targets) {
