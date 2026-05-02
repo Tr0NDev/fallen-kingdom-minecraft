@@ -205,7 +205,6 @@ public class CapSidebarManager {
         if (gameStateManager != null && gameStateManager.isRunning()) {
             nextDay = gameStateManager.getFormattedTimeUntilNextDay();
         } else {
-            plugin.getLogger().info("isRunning=" + (gameStateManager != null ? gameStateManager.isRunning() : "gsm null"));
             nextDay = "00:20:00";
         }
         lines.add(ChatColor.GRAY + "Next day: " + ChatColor.AQUA + nextDay);

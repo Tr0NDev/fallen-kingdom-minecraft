@@ -73,42 +73,49 @@ public class FkCommand implements CommandExecutor, TabCompleter {
 
         if (command.getName().equalsIgnoreCase("fk") && args.length == 1 && args[0].equalsIgnoreCase("help")) {
             player.sendMessage(PREFIX + ChatColor.YELLOW + "Available commands:");
-            player.sendMessage(ChatColor.AQUA + "/fk" + ChatColor.GRAY + " - show settings menu");
+            player.sendMessage(ChatColor.AQUA + "/fk" + ChatColor.GRAY + " - show settings menu (read-only)");
             player.sendMessage(ChatColor.AQUA + "/fk help" + ChatColor.GRAY + " - show this help");
             player.sendMessage(ChatColor.AQUA + "/fk show" + ChatColor.GRAY + " - show base limits and capture zones");
             player.sendMessage(ChatColor.AQUA + "/fk stats" + ChatColor.GRAY + " - show global player stats");
             player.sendMessage(ChatColor.AQUA + "/fk map list" + ChatColor.GRAY + " - show all maps with info");
-            player.sendMessage(ChatColor.AQUA + "/fk scoreboard" + ChatColor.GRAY + " - toggle cap scoreboard");
+            player.sendMessage(ChatColor.AQUA + "/fk scoreboard [on|off]" + ChatColor.GRAY + " - toggle cap scoreboard");
             if (player.isOp()) {
-                player.sendMessage(ChatColor.AQUA + "/fk team" + ChatColor.GRAY + " - open team menu");
-                player.sendMessage(ChatColor.AQUA + "/fk koth" + ChatColor.GRAY + " - open KOTH menu");
-                player.sendMessage(ChatColor.AQUA + "/fk map" + ChatColor.GRAY + " - start/open map vote GUI");
-                player.sendMessage(ChatColor.AQUA + "/fk settings" + ChatColor.GRAY + " - open game settings");
-                player.sendMessage(ChatColor.AQUA + "/fk koth start" + ChatColor.GRAY + " - force start KOTH");
-                player.sendMessage(ChatColor.AQUA + "/fk koth stop" + ChatColor.GRAY + " - stop KOTH");
-                player.sendMessage(ChatColor.AQUA + "/fk setday <number>" + ChatColor.GRAY + " - set the current day");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- Game ---");
                 player.sendMessage(ChatColor.AQUA + "/fk start" + ChatColor.GRAY + " - start the game");
                 player.sendMessage(ChatColor.AQUA + "/fk pause" + ChatColor.GRAY + " - pause the game");
                 player.sendMessage(ChatColor.AQUA + "/fk resume" + ChatColor.GRAY + " - resume the game");
                 player.sendMessage(ChatColor.AQUA + "/fk stop" + ChatColor.GRAY + " - stop the game");
+                player.sendMessage(ChatColor.AQUA + "/fk setday <number>" + ChatColor.GRAY + " - set the current day");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- Settings & Teams ---");
+                player.sendMessage(ChatColor.AQUA + "/fk settings" + ChatColor.GRAY + " - open game settings menu");
+                player.sendMessage(ChatColor.AQUA + "/fk team" + ChatColor.GRAY + " - open team management menu");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- Map ---");
+                player.sendMessage(ChatColor.AQUA + "/fk map" + ChatColor.GRAY + " - start or open map vote GUI");
+                player.sendMessage(ChatColor.AQUA + "/fk map list" + ChatColor.GRAY + " - list all configured maps");
                 player.sendMessage(ChatColor.AQUA + "/fk map switch <map> [player|all]" + ChatColor.GRAY + " - switch map and teleport targets");
-                player.sendMessage(ChatColor.AQUA + "/fk map timer <seconds>" + ChatColor.GRAY + " - set map vote timer");
-                player.sendMessage(ChatColor.AQUA + "/fk map clone <map> [newname]" + ChatColor.GRAY + " - clone a map config");
+                player.sendMessage(ChatColor.AQUA + "/fk map timer <seconds>" + ChatColor.GRAY + " - set map vote timer duration");
+                player.sendMessage(ChatColor.AQUA + "/fk map clone <map> [newname]" + ChatColor.GRAY + " - clone a map and its config");
                 player.sendMessage(ChatColor.AQUA + "/fk map load <map>" + ChatColor.GRAY + " - load a world into memory");
                 player.sendMessage(ChatColor.AQUA + "/fk map load list" + ChatColor.GRAY + " - list all currently loaded worlds");
                 player.sendMessage(ChatColor.AQUA + "/fk map unload <map>" + ChatColor.GRAY + " - unload a world from memory");
-                player.sendMessage(ChatColor.AQUA + "/fk map delete <map>" + ChatColor.GRAY + " - delete a map permanently");
-                player.sendMessage(ChatColor.AQUA + "/fk inv <player>" + ChatColor.GRAY + " - view and manage a player inventory live");
-                player.sendMessage(ChatColor.AQUA + "/fk creeper <0-100>" + ChatColor.GRAY + " - set charged creeper spawn chance");
+                player.sendMessage(ChatColor.AQUA + "/fk map delete <map>" + ChatColor.GRAY + " - permanently delete a map");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- KOTH ---");
+                player.sendMessage(ChatColor.AQUA + "/fk koth" + ChatColor.GRAY + " - open KOTH settings menu");
+                player.sendMessage(ChatColor.AQUA + "/fk koth start" + ChatColor.GRAY + " - force start KOTH");
+                player.sendMessage(ChatColor.AQUA + "/fk koth stop" + ChatColor.GRAY + " - stop KOTH");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- Items & Players ---");
+                player.sendMessage(ChatColor.AQUA + "/fk inv <player>" + ChatColor.GRAY + " - view and manage a player's inventory live");
                 player.sendMessage(ChatColor.AQUA + "/fk item rename <name>" + ChatColor.GRAY + " - rename held item");
                 player.sendMessage(ChatColor.AQUA + "/fk item enchant <enchant> <level>" + ChatColor.GRAY + " - enchant held item");
-                player.sendMessage(ChatColor.DARK_GRAY + "------------------------------");
+                player.sendMessage(ChatColor.AQUA + "/fk creeper <0-100>" + ChatColor.GRAY + " - set charged creeper spawn chance");
+                player.sendMessage(ChatColor.DARK_GRAY + "--- Shortcuts ---");
                 player.sendMessage(ChatColor.AQUA + "/heal [player|all]" + ChatColor.GRAY + " - heal targets");
                 player.sendMessage(ChatColor.AQUA + "/feed [player|all]" + ChatColor.GRAY + " - feed targets");
                 player.sendMessage(ChatColor.AQUA + "/tpall" + ChatColor.GRAY + " - teleport all players to you");
                 player.sendMessage(ChatColor.AQUA + "/gmc, /gms, /gmsp, /gma" + ChatColor.GRAY + " - gamemode shortcuts");
                 player.sendMessage(ChatColor.AQUA + "/nick <name>" + ChatColor.GRAY + " - rename yourself");
                 player.sendMessage(ChatColor.AQUA + "/skin <name>" + ChatColor.GRAY + " - copy another player's skin");
+                player.sendMessage(ChatColor.AQUA + "/fly" + ChatColor.GRAY + " - toggle flight");
             }
             return true;
         }
